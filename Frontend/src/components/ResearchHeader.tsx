@@ -23,11 +23,11 @@ export function ResearchHeader({ onAnalyze, isAnalyzing, showCompactSearch }: Re
             {/* Brand */}
             <div className="masthead-left">
                 <div className="masthead-mark">
-                    <span className="mark-ps">PS</span>
+                    <span className="mark-ps">R</span>
                 </div>
                 <div className="masthead-title-group">
-                    <h1 className="masthead-title">PaperShield</h1>
-                    <p className="masthead-sub label">Research Integrity Scanner — Vol. II, 2026</p>
+                    <h1 className="masthead-title">Resify</h1>
+                    <p className="masthead-sub label">Research Integrity Scanner — 2026</p>
                 </div>
             </div>
 

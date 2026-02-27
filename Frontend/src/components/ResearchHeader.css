@@ -35,7 +35,8 @@
 .mark-ps {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1rem;
+    font-style: italic;
+    font-size: 1.2rem;
     letter-spacing: -0.03em;
     color: var(--ink);
     line-height: 1;

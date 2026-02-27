@@ -146,10 +146,10 @@ export default function App() {
             <div className="hero-inner">
               <div className="hero-eyebrow label">Research Integrity Scanner</div>
               <h2 className="hero-headline">
-                Is the paper<br /><em>really</em> real?
+                Is the paper <em>really</em> real?
               </h2>
               <p className="hero-body">
-                Paste any ArXiv URL or DOI. PaperShield dispatches four parallel agents
+                Paste any ArXiv URL or DOI. PaperShield dispatches six parallel agents
                 to verify every citation, cross-reference every claim, and detect
                 AI-generated sections — in under 15 seconds.
               </p>
@@ -160,7 +160,7 @@ export default function App() {
                   <input
                     type="text"
                     className="hero-search-input mono"
-                    placeholder="Paste arXiv URL, DOI, or describe a paper…"
+                    placeholder="Paste arXiv URL, DOI, or paper description…"
                     value={heroQuery}
                     onChange={e => setHeroQuery(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAnalyze(heroQuery)}
@@ -174,6 +174,12 @@ export default function App() {
                   </button>
                 </div>
                 <p className="hero-search-hint mono">e.g. https://arxiv.org/abs/2602.04561</p>
+                <div className="hero-agents">
+                  <span className="hero-agents-label">Agents:</span>
+                  {['Citation Verifier', 'AI Detector', 'Claim Checker', 'Author Credibility', 'Methodology', 'Stats Anomaly'].map(a => (
+                    <span key={a} className="hero-agent-chip">{a}</span>
+                  ))}
+                </div>
               </div>
 
               <div className="hero-scroll-hint label">

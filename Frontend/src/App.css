@@ -13,30 +13,36 @@
   overflow-x: hidden;
 }
 
-/* Above-fold: fills viewport */
+/* Above-fold: fills viewport, centered */
 .hero-above-fold {
   min-height: calc(100vh - 73px);
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 4rem 2.5rem;
   border-bottom: 1.5px solid var(--ink);
 }
 
 .hero-inner {
-  max-width: 760px;
+  max-width: 960px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .hero-eyebrow {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .hero-headline {
   font-family: var(--font-display);
-  font-size: clamp(3.5rem, 6vw, 6rem);
+  font-size: clamp(4rem, 7.5vw, 7.5rem);
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 0.95;
-  margin-bottom: 1.75rem;
+  margin-bottom: 2rem;
   color: var(--ink);
 }
 
@@ -48,12 +54,12 @@
 
 .hero-body {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.35rem;
   font-weight: 300;
   color: var(--ink-mid);
-  max-width: 540px;
+  max-width: 720px;
   line-height: 1.65;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2.75rem;
 }
 
 .hero-scroll-hint {
@@ -79,26 +85,29 @@
 /* ── Hero Search Bar ────────────────────────────────────── */
 .hero-search-wrap {
   margin-bottom: 2rem;
+  width: 100%;
+  max-width: 900px;
 }
 
 .hero-search-inner {
   display: flex;
   border: 2px solid var(--ink);
   box-shadow: 4px 4px 0 var(--ink);
-  max-width: 640px;
+  width: 100%;
   background: var(--paper);
 }
 
 .hero-search-input {
   flex: 1;
-  padding: 0.9rem 1.25rem;
+  padding: 1.1rem 1.5rem;
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--ink);
   background: transparent;
   border: none;
   outline: none;
   letter-spacing: -0.01em;
+  min-height: 64px;
 }
 
 .hero-search-input::placeholder {
@@ -107,11 +116,11 @@
 
 .hero-search-btn {
   flex-shrink: 0;
-  padding: 0.9rem 1.75rem;
+  padding: 1.1rem 2.25rem;
   font-family: var(--font-sans);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   background: var(--ink);
   color: var(--paper);
@@ -132,9 +141,42 @@
 }
 
 .hero-search-hint {
-  margin-top: 0.6rem;
+  margin-top: 0.75rem;
   font-size: 0.78rem;
   color: var(--ink-faint);
+  text-align: center;
+}
+
+/* ── Agent Chips ─────────────────────────────────────────── */
+.hero-agents {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.hero-agents-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 0.25rem;
+}
+
+.hero-agent-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  border: 1.5px solid var(--rule);
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  white-space: nowrap;
 }
 
 /* ── Dashboard Grid ──────────────────────────────────────── */
