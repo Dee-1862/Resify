@@ -1,0 +1,19 @@
+# Virtual Environments
+venv/
+.env
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDEs
+.vscode/
+.idea/
+
+# Database / Caching
+*.db
+*.sqlite3
+existence_cache.db
+
+# Misc
+.DS_Store

@@ -1,0 +1,393 @@
+[
+    {
+        "citation": {
+            "id": 1,
+            "claim": "exposed the personal information of 147 million individuals, including social security numbers, birth dates, and addresses, leaving millions vulnerable to identity theft, fraud, and long-term financial harm, serving as an example of a major privacy violation.",
+            "context": "For instance, the 2017 Equifax data breach [Wikipedia, 2024a] exposed the personal information of 147 million individuals, including social security numbers, birth dates, and addresses, leaving millions vulnerable to identity theft, fraud, and long-term financial harm.",
+            "reference": {
+                "authors": "Wikipedia",
+                "title": null,
+                "year": 2024,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 2,
+            "claim": "sets strict standards for data management, focusing on consent and data minimization (GDPR).",
+            "context": "In Europe, the General Data Protection Regulation (GDPR) sets strict standards for data management, focusing on consent and data minimization [Parliament and of the European Union, 2016], while in the U.S., regulations like Title 13 [Bureau, 1998] govern the handling of census data and laws like the Health Insurance Portability and Accountability Act (HIPAA) and the California Consumer Privacy Act (CCPA) offer protections for health and consumer data [Centers for Medicare & Medicaid Services, 1996, Legislature, 2018].",
+            "reference": {
+                "authors": "Parliament and of the European Union",
+                "title": null,
+                "year": 2016,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 3,
+            "claim": "governs the handling of census data (Title 13).",
+            "context": "In Europe, the General Data Protection Regulation (GDPR) sets strict standards for data management, focusing on consent and data minimization [Parliament and of the European Union, 2016], while in the U.S., regulations like Title 13 [Bureau, 1998] govern the handling of census data and laws like the Health Insurance Portability and Accountability Act (HIPAA) and the California Consumer Privacy Act (CCPA) offer protections for health and consumer data [Centers for Medicare & Medicaid Services, 1996, Legislature, 2018].",
+            "reference": {
+                "authors": "Bureau",
+                "title": null,
+                "year": 1998,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 4,
+            "claim": "offers protections for health data (HIPAA).",
+            "context": "In Europe, the General Data Protection Regulation (GDPR) sets strict standards for data management, focusing on consent and data minimization [Parliament and of the European Union, 2016], while in the U.S., regulations like Title 13 [Bureau, 1998] govern the handling of census data and laws like the Health Insurance Portability and Accountability Act (HIPAA) and the California Consumer Privacy Act (CCPA) offer protections for health and consumer data [Centers for Medicare & Medicaid Services, 1996, Legislature, 2018].",
+            "reference": {
+                "authors": "Centers for Medicare & Medicaid Services",
+                "title": null,
+                "year": 1996,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 5,
+            "claim": "offers protections for consumer data (CCPA).",
+            "context": "In Europe, the General Data Protection Regulation (GDPR) sets strict standards for data management, focusing on consent and data minimization [Parliament and of the European Union, 2016], while in the U.S., regulations like Title 13 [Bureau, 1998] govern the handling of census data and laws like the Health Insurance Portability and Accountability Act (HIPAA) and the California Consumer Privacy Act (CCPA) offer protections for health and consumer data [Centers for Medicare & Medicaid Services, 1996, Legislature, 2018].",
+            "reference": {
+                "authors": "Legislature",
+                "title": null,
+                "year": 2018,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 6,
+            "claim": "underscores the increasing focus on privacy in both policy and technology through the release of the AI Bill of Rights Blueprint.",
+            "context": "Government actions, such as the release of the AI Bill of Rights Blueprint [House, 2023] in the US, underscore the increasing focus on privacy in both policy and technology.",
+            "reference": {
+                "authors": "House",
+                "title": null,
+                "year": 2023,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 7,
+            "claim": "formally introduced Differential Privacy, stating that the presence or absence of any individual record in a dataset should not significantly affect the outcome of a mechanism.",
+            "context": "The concept, first introduced in 2006 by Dwork et al. in Dwork et al. [2006b], informally states that the presence or absence of any individual record in a dataset should not significantly affect the outcome of a mechanism.",
+            "reference": {
+                "authors": "Dwork et al.",
+                "title": null,
+                "year": 2006,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 8,
+            "claim": "demonstrated that her de-anonymization attack extended far beyond a single high-profile individual, finding that 87% of the U.S. population could be uniquely identified based on 5-digit ZIP, gender, and date of birth.",
+            "context": "In a subsequent report [Sweeney, 2000], Dr. Sweeney demonstrated that her attack extended far beyond a single high-profile individual.",
+            "reference": {
+                "authors": "Sweeney",
+                "title": null,
+                "year": 2000,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 9,
+            "claim": "introduced k-anonymity and demonstrated that individuals could be vulnerable to singling-out attacks even with basic anonymization.",
+            "context": "In 1998, Prof. Pierangela Samarati and Dr. Latanya Sweeney (the same Dr.Sweeney who highlighted the failures of basic anonymization) introduced a generalization called k-anonymity [Samarati and Sweeney, 1998, Sweeney, 2002].",
+            "reference": {
+                "authors": "Sweeney",
+                "title": null,
+                "year": 2002,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 10,
+            "claim": "cited as a particularly sensitive example involving genomic data where statistical attacks can probabilistically reconstruct sensitive information.",
+            "context": "Moreover, sensitive attributes often correlate statistically with non-sensitive ones, rendering anonymization susceptible to statistical attacks that can probabilistically reconstruct sensitive information through these correlations—for a particularly sensitive example involving genomic data, refer to Homer et al. [2008].",
+            "reference": {
+                "authors": "Homer et al.",
+                "title": null,
+                "year": 2008,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 11,
+            "claim": "cited as a high-profile failure of anonymization (AOL search data release).",
+            "context": "Other high-profile failures include the AOL search data release [Barbaro et al., 2006], the Netflix Prize dataset [Narayanan and Shmatikov, 2006], and studies demonstrating that individuals can be uniquely identified using just a few mobile phone location points [De Montjoye et al., 2013].",
+            "reference": {
+                "authors": "Barbaro et al.",
+                "title": null,
+                "year": 2006,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 12,
+            "claim": "cited as a high-profile failure of anonymization (Netflix Prize dataset).",
+            "context": "Other high-profile failures include the AOL search data release [Barbaro et al., 2006], the Netflix Prize dataset [Narayanan and Shmatikov, 2006], and studies demonstrating that individuals can be uniquely identified using just a few mobile phone location points [De Montjoye et al., 2013].",
+            "reference": {
+                "authors": "Narayanan and Shmatikov",
+                "title": null,
+                "year": 2006,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 13,
+            "claim": "demonstrated that individuals can be uniquely identified using just a few mobile phone location points.",
+            "context": "Other high-profile failures include the AOL search data release [Barbaro et al., 2006], the Netflix Prize dataset [Narayanan and Shmatikov, 2006], and studies demonstrating that individuals can be uniquely identified using just a few mobile phone location points [De Montjoye et al., 2013].",
+            "reference": {
+                "authors": "De Montjoye et al.",
+                "title": null,
+                "year": 2013,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 14,
+            "claim": "introduced a generalization called k-anonymity.",
+            "context": "In 1998, Prof. Pierangela Samarati and Dr. Latanya Sweeney (the same Dr.Sweeney who highlighted the failures of basic anonymization) introduced a generalization called k-anonymity [Samarati and Sweeney, 1998, Sweeney, 2002].",
+            "reference": {
+                "authors": "Samarati and Sweeney",
+                "title": null,
+                "year": 1998,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 15,
+            "claim": "highlighted that the core issue with k-anonymity is the exposure of sensitive information associated with individuals without explicit re-identification.",
+            "context": "Instead, the real problem lies in the exposure of sensitive information associated with individuals without explicit re-identification, as highlighted in [Desfontaines, 2017].",
+            "reference": {
+                "authors": "Desfontaines",
+                "title": null,
+                "year": 2017,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 16,
+            "claim": "provided extensive practical evidence showing that the issues with k-anonymity are real and pervasive.",
+            "context": "While this example is simplified for clarity, extensive practical evidence has shown that the issues with k-anonymity are real and pervasive [Narayanan and Shmatikov, 2008].",
+            "reference": {
+                "authors": "Narayanan and Shmatikov",
+                "title": null,
+                "year": 2008,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 17,
+            "claim": "showed that differential attacks can be executed in far more complex settings, even when the query language is restricted, and laid the groundwork for understanding privacy-accuracy trade-offs when incorporating privacy noise.",
+            "context": "Although this example is simplified, Dinur and Nissim [2003] have shown that such differential attacks can be executed in far more complex settings, even when the query language is restricted.",
+            "reference": {
+                "authors": "Dinur and Nissim",
+                "title": null,
+                "year": 2003,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 18,
+            "claim": "provided a deeper exploration of the challenges in calibrating noise to protect against reconstruction attacks.",
+            "context": "Readers can consult their work, as well as subsequent studies [Cohen et al., 2020a,b], for a deeper exploration of the challenges in calibrating noise to protect against reconstruction attacks.",
+            "reference": {
+                "authors": "Cohen et al.",
+                "title": null,
+                "year": 2020,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 19,
+            "claim": "cited as a notable example of Federated Learning (FL).",
+            "context": "A notable example is Federated Learning (FL) [Li et al., 2020].",
+            "reference": {
+                "authors": "Li et al.",
+                "title": null,
+                "year": 2020,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 20,
+            "claim": "showed that gradient updates in Federated Learning often encode sufficient information to be able to guess the original user data with high accuracy.",
+            "context": "Yet, recent work has shown that this is insufficient: the gradient updates themselves often encode sufficient information to be able to guess the original user data with high accuracy [Zhu et al., 2019].",
+            "reference": {
+                "authors": "Zhu et al.",
+                "title": null,
+                "year": 2019,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "not_found",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 21,
+            "claim": "found that large language models trained on extensive text corpora have been found to occasionally output verbatim snippets from the training data when prompted in specific ways.",
+            "context": "For instance, large language models trained on extensive text corpora have been found to occasionally output verbatim snippets from the training data when prompted in specific ways [Carlini et al., 2021].",
+            "reference": {
+                "authors": "Carlini et al.",
+                "title": null,
+                "year": 2021,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 22,
+            "claim": "cited as a real-world example involving a South Korean AI company, Scatter Lab, where a chatbot reproduced memorized conversations from training data, inadvertently disclosing private and sensitive information.",
+            "context": "A real-world example involves a South Korean AI company Scatter Lab [Dobberstein, 2021].",
+            "reference": {
+                "authors": "Dobberstein",
+                "title": null,
+                "year": 2021,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    },
+    {
+        "citation": {
+            "id": 23,
+            "claim": "proposed randomized response in 1965 to privately survey respondents for a potentially sensitive property.",
+            "context": "Randomized response [Warner, 1965] was proposed by Warner in 1965 to privately survey respondents for a potentially sensitive property.",
+            "reference": {
+                "authors": "Warner",
+                "title": null,
+                "year": 1965,
+                "venue": null
+            }
+        },
+        "source": {},
+        "existence_status": "error",
+        "metadata_status": "N/A",
+        "metadata_errors": []
+    }
+]
