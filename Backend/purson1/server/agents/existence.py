@@ -3,7 +3,7 @@ import hashlib
 import json
 import logging
 from typing import Any, Dict, List, Optional
-from server.core.agent_base import BaseAgent
+from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
 from server.utils.apis import SemanticScholarAPI, CrossRefAPI, APIError
 
 class ExistenceCache:
@@ -49,7 +49,6 @@ class ExistenceCache:
 def normalize_text(text: str) -> str:
     if not text:
         return ""
-    # simple normalization
     import re
     text = text.lower()
     text = re.sub(r'[^\w\s]', '', text)
@@ -58,7 +57,6 @@ def normalize_text(text: str) -> str:
 def get_first_author_lastname(authors_str: str) -> str:
     if not authors_str:
         return ""
-    # Usually "Smith et al." -> "smith" or "John Smith" -> "smith"
     parts = authors_str.replace("et al.", "").strip().split()
     return normalize_text(parts[-1]) if parts else ""
 
@@ -72,11 +70,15 @@ def word_overlap(text1: str, text2: str) -> float:
     intersection = words1 & words2
     union = words1 | words2
     
+    if not union: return 0.0
     return len(intersection) / len(union)
 
 
 class ExistenceAgent(BaseAgent):
     name = "existence"
+    stage = PipelineStage.CHECKING_EXISTENCE
+    description = "Check citation existence"
+    requires_tokens = False
 
     def __init__(self, db_path="existence_cache.db"):
         super().__init__()
@@ -95,12 +97,12 @@ class ExistenceAgent(BaseAgent):
         for paper in results:
             score = 0
             
-            # Title similarity (word overlap) -> max 50 points
+            # Title similarity
             paper_title = paper.get("title", "")
             title_sim = word_overlap(ref_title, paper_title)
             score += title_sim * 50
             
-            # Year match -> max 30 points
+            # Year match
             paper_year = paper.get("year")
             if paper_year and ref_year:
                 try:
@@ -109,15 +111,18 @@ class ExistenceAgent(BaseAgent):
                     if p_year == r_year:
                         score += 30
                     elif abs(p_year - r_year) == 1:
-                        score += 15  # Off by one year
+                        score += 15
                 except ValueError:
                     pass
             
-            # Author match -> max 20 points
-            paper_authors = [normalize_text(a.get("name", "")) for a in paper.get("authors", [])] if isinstance(paper.get("authors"), list) else []
-            # some api might return string for authors, some list of dicts. handle safely
-            if isinstance(paper.get("authors"), list) and isinstance(paper.get("authors")[0] if paper.get("authors") else "", str):
-                paper_authors = [normalize_text(a) for a in paper.get("authors", [])]
+            # Author match
+            paper_authors = []
+            if isinstance(paper.get("authors"), list):
+                for a in paper.get("authors", []):
+                    if isinstance(a, str):
+                        paper_authors.append(normalize_text(a))
+                    elif isinstance(a, dict) and "name" in a:
+                        paper_authors.append(normalize_text(a["name"]))
 
             if ref_author and any(ref_author in a for a in paper_authors):
                 score += 20
@@ -131,14 +136,9 @@ class ExistenceAgent(BaseAgent):
         return None, best_score
 
     def _verify_metadata(self, reference: dict, matched_paper: dict, match_score: int) -> dict:
-        # A simple verify logic structure as requested
-        ref_title = reference.get("title", "")
         ref_year = reference.get("year")
-        ref_authors = reference.get("authors", "")
-
         errors = []
         
-        # Check Year
         try:
             if ref_year and matched_paper.get("year"):
                 if abs(int(ref_year) - int(matched_paper["year"])) > 1:
@@ -156,80 +156,83 @@ class ExistenceAgent(BaseAgent):
             "metadata_errors": errors
         }
 
-    async def _run_logic(self, input_data: dict) -> tuple[Dict[str, Any], int]:
-        citation = input_data.get("citation", {})
-        reference = citation.get("reference", {})
-        
-        if not reference:
-            raise ValueError("Citation missing 'reference' field")
-            
-        ref_title = reference.get("title", "")
-        ref_year = reference.get("year", "")
-        ref_authors = reference.get("authors", "")
-        first_author = get_first_author_lastname(ref_authors)
+    async def process(self, ctx: PipelineContext) -> AgentResult:
+        all_results = {}
+        for cit in ctx.citations:
+            cid = cit["id"]
+            reference = cit.get("reference", {})
+            if not reference:
+                continue
 
-        # 1. Check Cache
-        cached_data = self.cache.get(ref_title, first_author, ref_year)
-        if cached_data:
-            cached_data["cached"] = True
-            return cached_data, 0
+            ref_title = reference.get("title", "") or ""
+            ref_year = reference.get("year", "") or ""
+            ref_authors = reference.get("authors", "") or ""
+            first_author = get_first_author_lastname(ref_authors)
 
-        # 2. Build Query
-        query = f"{ref_title} {first_author} {ref_year}".strip()
-        
-        try:
-            # 3. Search API (Semantic Scholar)
-            results = await self.semantic_scholar.search(query, limit=5)
-            
-            # 4. Find Match
-            match, score = self._find_best_match(reference, results)
-            
-            if not match:
-                # 5. Fallback CrossRef (if we want to construct a query... just title is good enough)
-                # Actually crossref needs DOI but we can try basic /works query over title.
-                # Here we will skip crossref search for now and return not_found.
+            # Check Cache
+            cached_data = self.cache.get(ref_title, first_author, ref_year)
+            if cached_data:
+                cached_data["cached"] = True
+                all_results[str(cid)] = cached_data
+                continue
+
+            query = f"{ref_title} {first_author} {ref_year}".strip()
+            if not query:
+                continue
+
+            try:
+                results = await self.semantic_scholar.search(query, limit=5)
+                match, score = self._find_best_match(reference, results)
+                
+                if not match:
+                    response_data = {
+                        "status": "not_found",
+                        "reason": "No matching paper found in Semantic Scholar",
+                        "query_used": query,
+                        "search_results": len(results),
+                        "cached": False
+                    }
+                    all_results[str(cid)] = response_data
+                    continue
+                    
+                paper_id = match.get("paperId", "")
+                
+                paper_obj = {
+                    "paper_id": paper_id,
+                    "title": match.get("title"),
+                    "authors": [a.get("name") if isinstance(a, dict) else a for a in match.get("authors", [])],
+                    "year": match.get("year"),
+                    "abstract": match.get("abstract", "")
+                }
+                
+                meta_verify = self._verify_metadata(reference, paper_obj, score)
+
                 response_data = {
-                    "status": "not_found",
-                    "reason": "No matching paper found in Semantic Scholar",
-                    "query_used": query,
-                    "search_results": len(results),
+                    "status": "found",
+                    "paper": paper_obj,
+                    "match_score": score,
+                    "metadata_status": meta_verify["metadata_status"],
+                    "metadata_errors": meta_verify["metadata_errors"],
                     "cached": False
                 }
-                return response_data, 0
                 
-            # If match found, structure output
-            paper_id = match.get("paperId", "")
-            
-            # format paper obj
-            paper_obj = {
-                "paper_id": paper_id,
-                "title": match.get("title"),
-                "authors": [a.get("name") if isinstance(a, dict) else a for a in match.get("authors", [])],
-                "year": match.get("year"),
-                "abstract": match.get("abstract", "")
-            }
-            
-            # get metadata verification
-            meta_verify = self._verify_metadata(reference, paper_obj, score)
+                self.cache.set(ref_title, first_author, ref_year, paper_id, response_data)
+                all_results[str(cid)] = response_data
+                
+            except APIError as e:
+                all_results[str(cid)] = {
+                    "status": "not_found", 
+                    "reason": f"API Error: {str(e)}"
+                }
+            except Exception as e:
+                logging.error(f"Existence checker error: {e}")
+                pass
+                
+        return AgentResult(
+            agent_name=self.name,
+            status="success",
+            data={"results": all_results},
+            tokens_used=0,
+        )
 
-            response_data = {
-                "status": "found",
-                "paper": paper_obj,
-                "match_score": score,
-                "metadata_status": meta_verify["metadata_status"],
-                "metadata_errors": meta_verify["metadata_errors"],
-                "cached": False
-            }
-            
-            # Setup for Cache
-            self.cache.set(ref_title, first_author, ref_year, paper_id, response_data)
-            
-            return response_data, 0
-            
-        except APIError as e:
-            if "rate limited" in str(e).lower() or e.status_code == 429:
-                raise Exception("EXISTENCE_RATE_LIMITED: " + str(e))
-            raise Exception("EXISTENCE_TIMEOUT: " + str(e))
-        except Exception as e:
-            logging.error(f"Existence checker error: {e}")
-            raise Exception("EXISTENCE_ERROR: " + str(e))
+registry.register(ExistenceAgent())

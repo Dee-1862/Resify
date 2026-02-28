@@ -1,12 +1,14 @@
 import re
-from typing import Any, Dict
-from server.core.agent_base import BaseAgent
+import time
+from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
 from server.utils.apis import SemanticScholarAPI, ArXivAPI, CrossRefAPI, APIError
 from server.utils.pdf import PDFScraper
 
 class FetcherAgent(BaseAgent):
     name = "fetcher"
-
+    stage = PipelineStage.FETCHING
+    description = "Fetch and extract paper text"
+    
     def __init__(self):
         super().__init__()
         self.arxiv_api = ArXivAPI()
@@ -30,27 +32,27 @@ class FetcherAgent(BaseAgent):
         return match.group(1) if match else input_str
 
     def _extract_doi(self, input_str: str) -> str:
-        # 10.\d{4,9}/[-._;()/:A-Z0-9]+
         match = re.search(r"(10\.\d{4,9}/[-._;()/:a-zA-Z0-9]+)", input_str)
         return match.group(1) if match else input_str
 
-    async def _run_logic(self, input_data: dict) -> tuple[Dict[str, Any], int]:
-        input_str = input_data.get("input", "")
+    async def process(self, ctx: PipelineContext) -> AgentResult:
+        # We can try paper_url, paper_doi, or paper_text
+        input_str = ctx.paper_url or ctx.paper_doi or ctx.paper_text
         if not input_str:
-            raise ValueError("Input string is required")
-
+            return AgentResult(agent_name=self.name, status="error", error="No input provided")
+            
         input_type = self._detect_input_type(input_str)
         
         data = {
             "text": None,
-            "title": None,
-            "authors": None,
+            "title": "Document Title", # Fallback title
+            "authors": [],
             "year": None,
             "abstract": None,
             "source": input_type,
-            "url": input_str if input_str.startswith("http") else None,
+            "url": ctx.paper_url,
             "arxiv_id": None,
-            "doi": None,
+            "doi": ctx.paper_doi,
             "pdf_url": None
         }
 
@@ -60,37 +62,30 @@ class FetcherAgent(BaseAgent):
             try:
                 paper_metadata = await self.arxiv_api.get_paper(arxiv_id)
                 if not paper_metadata:
-                    raise APIError("Paper not found on ArXiv", 404)
+                    raise Exception("FETCH_404: Paper not found on ArXiv")
                 
-                # Merge metadata
                 data.update(paper_metadata)
                 data["doi"] = f"10.48550/arXiv.{arxiv_id}"
                 
-                # Fetch full text if pdf url exists
                 if data["pdf_url"]:
                     data["text"] = await PDFScraper.extract_text_from_url(data["pdf_url"])
             except APIError as e:
-                if e.status_code == 404:
-                    raise Exception("FETCH_404: " + str(e))
                 raise Exception("FETCH_FAILED: " + str(e))
                 
         elif input_type == "doi":
             doi = self._extract_doi(input_str)
             data["doi"] = doi
             try:
-                # Try CrossRef first, often more reliable for initial DOI lookup
                 paper_metadata = await self.crossref_api.get_paper_by_doi(doi)
                 if not paper_metadata:
-                    raise APIError("Paper not found on CrossRef", 404)
+                    raise Exception("FETCH_404: Paper not found on CrossRef")
                 
                 data.update(paper_metadata)
                 
-                # abstract from SemanticScholar if missing
                 if not data["abstract"]:
                     ss_data = await self.semantic_scholar.get_paper_by_doi(doi)
                     if ss_data and ss_data.get("abstract"):
                         data["abstract"] = ss_data["abstract"]
-                        
             except APIError as e:
                 raise Exception("FETCH_FAILED: " + str(e))
 
@@ -100,10 +95,16 @@ class FetcherAgent(BaseAgent):
             except Exception as e:
                 raise Exception("PDF_PARSE_FAILED: " + str(e))
 
-        elif input_type == "direct":
+        elif input_type == "direct" or input_type == "url":
+            # If it's pure text, just pass it through
             data["text"] = input_str
-            
-        else:
-            raise Exception("INVALID_URL: Could not determine input type")
+            data["source"] = "direct"
+        
+        return AgentResult(
+            agent_name=self.name,
+            status="success",
+            data=data,
+            tokens_used=0,
+        )
 
-        return data, 0
+registry.register(FetcherAgent())
