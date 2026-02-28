@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
-from server.utils.apis import SemanticScholarAPI, CrossRefAPI, APIError
+from server.utils.apis import SemanticScholarAPI, CrossRefAPI, ArXivAPI, APIError
 
 class ExistenceCache:
     def __init__(self, db_path="existence_cache.db"):
@@ -84,6 +84,7 @@ class ExistenceAgent(BaseAgent):
         super().__init__()
         self.semantic_scholar = SemanticScholarAPI()
         self.crossref = CrossRefAPI()
+        self.arxiv = ArXivAPI()
         self.cache = ExistenceCache(db_path)
 
     def _find_best_match(self, reference: dict, results: list) -> tuple[Optional[dict], int]:
@@ -180,16 +181,66 @@ class ExistenceAgent(BaseAgent):
             if not query:
                 continue
 
+            # --- MULTI-STAGE FALLBACK & DIRECT LOOKUP ---
+            source_used = "None"
             try:
-                results = await self.semantic_scholar.search(query, limit=5)
-                match, score = self._find_best_match(reference, results)
+                match = None
+                score = 0
                 
+                # Stage 0: Direct ID Lookup
+                arxiv_id = reference.get("arxiv_id")
+                doi = reference.get("doi")
+                
+                if arxiv_id:
+                    source_used = "ArXiv (Direct ID)"
+                    paper = await self.arxiv.get_paper(arxiv_id)
+                    if paper:
+                        match = {
+                            "paperId": arxiv_id,
+                            "title": paper["title"],
+                            "authors": paper["authors"],
+                            "year": paper["year"],
+                            "abstract": paper["abstract"]
+                        }
+                        score = 100 # Direct match
+                
+                if not match and doi:
+                    source_used = "CrossRef (Direct DOI)"
+                    paper = await self.crossref.get_paper_by_doi(doi)
+                    if paper:
+                        match = {
+                            "paperId": doi,
+                            "title": paper["title"],
+                            "authors": paper["authors"],
+                            "year": paper["year"],
+                            "abstract": paper["abstract"]
+                        }
+                        score = 100 # Direct match
+
+                # Stage 1: Semantic Scholar (Title + Author + Year)
+                if not match:
+                    source_used = "Semantic Scholar (Standard)"
+                    results = await self.semantic_scholar.search(query, limit=5)
+                    match, score = self._find_best_match(reference, results)
+                
+                # Stage 2: Semantic Scholar (Title only)
+                if not match and ref_title:
+                    source_used = "Semantic Scholar (Title-only)"
+                    results = await self.semantic_scholar.search(ref_title, limit=5)
+                    match, score = self._find_best_match(reference, results)
+
+                # Stage 3: CrossRef Fallback (Search)
+                if not match and ref_title:
+                    source_used = "CrossRef (Search)"
+                    results = await self.crossref.search(f"{ref_title} {first_author}", limit=5)
+                    match, score = self._find_best_match(reference, results)
+
                 if not match:
                     response_data = {
                         "status": "not_found",
-                        "reason": "No matching paper found in Semantic Scholar",
+                        "reason": "No matching paper found after all fallbacks",
                         "query_used": query,
-                        "search_results": len(results),
+                        "sources_tried": ["Direct IDs", "Semantic Scholar", "CrossRef"],
                         "cached": False
                     }
                     all_results[str(cid)] = response_data
@@ -202,7 +253,8 @@ class ExistenceAgent(BaseAgent):
                     "title": match.get("title"),
                     "authors": [a.get("name") if isinstance(a, dict) else a for a in match.get("authors", [])],
                     "year": match.get("year"),
-                    "abstract": match.get("abstract", "")
+                    "abstract": match.get("abstract", ""),
+                    "source_found": source_used
                 }
                 
                 meta_verify = self._verify_metadata(reference, paper_obj, score)
@@ -222,11 +274,14 @@ class ExistenceAgent(BaseAgent):
             except APIError as e:
                 all_results[str(cid)] = {
                     "status": "not_found", 
-                    "reason": f"API Error: {str(e)}"
+                    "reason": f"API Error ({source_used}): {str(e)}"
                 }
             except Exception as e:
-                logging.error(f"Existence checker error: {e}")
-                pass
+                logging.error(f"Existence checker error for cid {cid}: {e}")
+                all_results[str(cid)] = {
+                    "status": "error",
+                    "reason": str(e)
+                }
                 
         return AgentResult(
             agent_name=self.name,

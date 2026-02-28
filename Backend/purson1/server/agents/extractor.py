@@ -10,6 +10,8 @@ class ReferenceModel(BaseModel):
     title: str | None = Field(default=None, description="Paper title if mentioned")
     year: int = Field(description="Publication year")
     venue: str | None = Field(default=None, description="Conference/journal if mentioned")
+    arxiv_id: str | None = Field(default=None, description="ArXiv identifier if present (e.g., '2411.04710' or 'cs/0610105')")
+    doi: str | None = Field(default=None, description="DOI if present (e.g., '10.1145/127135.127136')")
 
 class CitationModel(BaseModel):
     id: int = Field(description="Sequential identifier")
@@ -67,7 +69,9 @@ class ExtractorAgent(BaseAgent):
                     "authors": c.reference.authors,
                     "title": c.reference.title,
                     "year": c.reference.year,
-                    "venue": c.reference.venue
+                    "venue": c.reference.venue,
+                    "arxiv_id": c.reference.arxiv_id,
+                    "doi": c.reference.doi
                 }
             })
         return valid
@@ -88,7 +92,8 @@ CRITICAL INSTRUCTIONS:
 2. For each, provide ONE JSON object.
 3. The "claim" must be what THIS paper says ABOUT the cited work.
 4. If a paper is cited multiple times, summarize the most important claim.
-5. Return a JSON array only.
+5. Search for and extract ArXiv IDs (e.g., 2411.04710) or DOIs if they are mentioned in the text or reference list.
+6. Return a JSON array only.
         '''
 
         try:

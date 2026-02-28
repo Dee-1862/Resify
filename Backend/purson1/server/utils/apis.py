@@ -137,3 +137,39 @@ class CrossRefAPI:
                     return None
             except Exception as e:
                 raise APIError(f"CrossRef Error: {str(e)}")
+
+    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        url = f"{self.BASE_URL}?query={quote_plus(query)}&rows={limit}"
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, timeout=10) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        items = data.get("message", {}).get("items", [])
+                        results = []
+                        for msg in items:
+                            authors = []
+                            for author in msg.get("author", []):
+                                family = author.get("family", "")
+                                given = author.get("given", "")
+                                name = f"{given} {family}".strip()
+                                if name:
+                                    authors.append(name)
+
+                            title = msg.get("title", [""])[0] if msg.get("title") else ""
+                            published = msg.get("published", msg.get("published-print", msg.get("issued", {})))
+                            date_parts = published.get("date-parts", [[]])[0]
+                            year = date_parts[0] if date_parts else None
+
+                            results.append({
+                                "title": title,
+                                "authors": authors,
+                                "year": year,
+                                "abstract": msg.get("abstract", ""),
+                                "paperId": msg.get("DOI", "")
+                            })
+                        return results
+                    return []
+            except Exception as e:
+                logging.error(f"CrossRef Search Error: {e}")
+                return []
