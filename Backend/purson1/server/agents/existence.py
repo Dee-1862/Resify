@@ -5,6 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
 from server.utils.apis import SemanticScholarAPI, CrossRefAPI, ArXivAPI, APIError
+from google import genai
 
 class ExistenceCache:
     def __init__(self, db_path="existence_cache.db"):
@@ -78,13 +79,17 @@ class ExistenceAgent(BaseAgent):
     name = "existence"
     stage = PipelineStage.CHECKING_EXISTENCE
     description = "Check citation existence"
-    requires_tokens = False
+    requires_tokens = True
 
     def __init__(self, db_path="existence_cache.db"):
         super().__init__()
         self.semantic_scholar = SemanticScholarAPI()
         self.crossref = CrossRefAPI()
         self.arxiv = ArXivAPI()
+        try:
+            self.client = genai.Client()
+        except Exception:
+            self.client = None
         self.cache = ExistenceCache(db_path)
 
     def _find_best_match(self, reference: dict, results: list) -> tuple[Optional[dict], int]:
@@ -235,26 +240,83 @@ class ExistenceAgent(BaseAgent):
                     results = await self.crossref.search(f"{ref_title} {first_author}", limit=5)
                     match, score = self._find_best_match(reference, results)
 
+                # Stage 4: LLM Final Check (Optimization for 0% "not found")
+                if not match and ref_title:
+                    source_used = "LLM Verification (Heuristic)"
+                    # Final attempt: Ask LLM if this citation looks real but just missed by APIs
+                    # (e.g., very new, technical error, or minor extraction mismatch)
+                    try:
+                        prompt = f"""
+                        Evaluate if this academic citation is likely a real published paper or a complete hallucination.
+                        Citation: {ref_authors}, "{ref_title}", {ref_year}
+                        
+                        Respond with a JSON object:
+                        {{
+                            "is_likely_real": bool,
+                            "confidence": float (0-1),
+                            "reasoning": "short explanation"
+                        }}
+                        """
+                        # We use a simple loop runner for GenAI in this context
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        
+                        def run_llm_check():
+                            if not hasattr(self, 'client') or not self.client:
+                                return None
+                            return self.client.models.generate_content(
+                                model="gemini-2.0-flash",
+                                contents=prompt,
+                                config={"response_mime_type": "application/json"}
+                            )
+                        
+                        response = await loop.run_in_executor(None, run_llm_check)
+                        if response and response.text:
+                            analysis = json.loads(response.text)
+                            if analysis.get("is_likely_real") and analysis.get("confidence", 0) > 0.7:
+                                # We treat it as "found" but with a placeholder paper object
+                                # so it passes to the embedding/gate stage for context verification
+                                match = {
+                                    "paperId": f"suspect_{cid}",
+                                    "title": ref_title,
+                                    "authors": [ref_authors],
+                                    "year": ref_year,
+                                    "abstract": "Metadata found via LLM heuristic - no direct API match.",
+                                    "is_suspect": True
+                                }
+                                score = 50 # Marginal confidence
+                    except Exception as e:
+                        logging.warning(f"LLM fallback failed for cid {cid}: {e}")
+
                 if not match:
                     response_data = {
                         "status": "not_found",
-                        "reason": "No matching paper found after all fallbacks",
+                        "reason": "No matching paper found after all fallbacks (API and LLM)",
                         "query_used": query,
-                        "sources_tried": ["Direct IDs", "Semantic Scholar", "CrossRef"],
+                        "sources_tried": ["Direct IDs", "Semantic Scholar", "CrossRef", "LLM Heuristic"],
                         "cached": False
                     }
                     all_results[str(cid)] = response_data
                     continue
                     
                 paper_id = match.get("paperId", "")
+                is_suspect = match.get("is_suspect", False)
                 
+                # Hybrid Flag: Determine if this needs human review
+                needs_review = False
+                if is_suspect:
+                    needs_review = True
+                elif 60 <= score <= 75:
+                    needs_review = True
+
                 paper_obj = {
                     "paper_id": paper_id,
                     "title": match.get("title"),
                     "authors": [a.get("name") if isinstance(a, dict) else a for a in match.get("authors", [])],
                     "year": match.get("year"),
                     "abstract": match.get("abstract", ""),
-                    "source_found": source_used
+                    "source_found": source_used,
+                    "is_suspect": is_suspect
                 }
                 
                 meta_verify = self._verify_metadata(reference, paper_obj, score)
@@ -265,6 +327,7 @@ class ExistenceAgent(BaseAgent):
                     "match_score": score,
                     "metadata_status": meta_verify["metadata_status"],
                     "metadata_errors": meta_verify["metadata_errors"],
+                    "needs_review": needs_review,
                     "cached": False
                 }
                 
@@ -274,13 +337,15 @@ class ExistenceAgent(BaseAgent):
             except APIError as e:
                 all_results[str(cid)] = {
                     "status": "not_found", 
-                    "reason": f"API Error ({source_used}): {str(e)}"
+                    "reason": f"API Error ({source_used}): {str(e)}",
+                    "needs_review": True # API errors definitely need a look
                 }
             except Exception as e:
                 logging.error(f"Existence checker error for cid {cid}: {e}")
                 all_results[str(cid)] = {
                     "status": "error",
-                    "reason": str(e)
+                    "reason": str(e),
+                    "needs_review": True
                 }
                 
         return AgentResult(

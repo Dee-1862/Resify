@@ -291,8 +291,12 @@ class PipelineOrchestrator:
         uncertain = 0
         not_found = 0
         metadata_errors = 0
+        needs_review_count = 0
 
         for c in final_citations:
+            if c.get("needs_review"):
+                needs_review_count += 1
+
             existence = c.get("existence_status", "not_found")
             if existence == "not_found":
                 not_found += 1
@@ -342,6 +346,7 @@ class PipelineOrchestrator:
                 "uncertain": uncertain,
                 "not_found": not_found,
                 "metadata_errors": metadata_errors,
+                "needs_review": needs_review_count
             },
             "paper": paper_meta,
             "citations": final_citations,
@@ -388,6 +393,7 @@ class PipelineOrchestrator:
             existence = ctx.existence_results.get(cid)
             if existence:
                 entry["existence_status"] = existence.get("status", "not_found")
+                entry["needs_review"] = existence.get("needs_review", False)
                 if existence.get("status") == "found" and existence.get("paper"):
                     source = existence["paper"]
                     entry["source_found"] = {
@@ -413,6 +419,8 @@ class PipelineOrchestrator:
                     "evidence": emb_match.get("evidence"),
                     "method": emb_match.get("method", "embedding"),
                 }
+                if entry["verification"]["verdict"] == "uncertain":
+                    entry["needs_review"] = True
                 merged.append(entry)
                 continue
 
@@ -428,6 +436,8 @@ class PipelineOrchestrator:
                     "evidence": llm_match.get("evidence"),
                     "method": llm_match.get("method", "llm"),
                 }
+                if entry["verification"]["verdict"] == "uncertain":
+                    entry["needs_review"] = True
                 merged.append(entry)
                 continue
 
@@ -439,6 +449,7 @@ class PipelineOrchestrator:
                     "evidence": None,
                     "method": "none",
                 }
+                entry["needs_review"] = True
 
             merged.append(entry)
 
