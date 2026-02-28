@@ -113,9 +113,12 @@ class PipelineOrchestrator:
             progress_start, progress_end, default_msg = STAGE_PROGRESS[stage]
             await ctx.send_progress(default_msg, progress_start)
 
-            # Run all agents registered for this stage
-            for agent in agents:
-                result = await self._run_agent(agent, ctx)
+            # Run all agents registered for this stage CONCURRENTLY
+            tasks = [self._run_agent(agent, ctx) for agent in agents]
+            results = await asyncio.gather(*tasks)
+            
+            # Apply results securely
+            for agent, result in zip(agents, results):
                 if result:
                     self._apply_result(agent, result, ctx)
 

@@ -1,4 +1,5 @@
-import sqlite3
+import asyncio
+import aiosqlite
 import hashlib
 import json
 import logging
@@ -9,11 +10,10 @@ from server.utils.apis import SemanticScholarAPI, CrossRefAPI, APIError
 class ExistenceCache:
     def __init__(self, db_path="existence_cache.db"):
         self.db_path = db_path
-        self._init_db()
-
-    def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+        
+    async def init_db(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
                 CREATE TABLE IF NOT EXISTS cache (
                     lookup_key TEXT PRIMARY KEY,
                     paper_id TEXT,
@@ -21,30 +21,29 @@ class ExistenceCache:
                     cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            conn.commit()
+            await db.commit()
 
     def _generate_key(self, title: str, author: str, year: Any) -> str:
         s = f"{title}_{author}_{year}".lower()
         return hashlib.sha256(s.encode()).hexdigest()
 
-    def get(self, title: str, author: str, year: Any) -> Optional[Dict]:
+    async def get(self, title: str, author: str, year: Any) -> Optional[Dict]:
         key = self._generate_key(title, author, year)
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT data FROM cache WHERE lookup_key = ?", (key,))
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT data FROM cache WHERE lookup_key = ?", (key,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    return json.loads(row[0])
         return None
 
-    def set(self, title: str, author: str, year: Any, paper_id: str, data: Dict):
+    async def set(self, title: str, author: str, year: Any, paper_id: str, data: Dict):
         key = self._generate_key(title, author, year)
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
                 "INSERT OR REPLACE INTO cache (lookup_key, paper_id, data) VALUES (?, ?, ?)",
                 (key, paper_id, json.dumps(data))
             )
-            conn.commit()
-
+            await db.commit()
 
 def normalize_text(text: str) -> str:
     if not text:
@@ -80,11 +79,12 @@ class ExistenceAgent(BaseAgent):
     description = "Check citation existence"
     requires_tokens = False
 
-    def __init__(self, db_path="existence_cache.db"):
+    def __init__(self, db_path="existence_cache.db", concurrency_limit=5):
         super().__init__()
         self.semantic_scholar = SemanticScholarAPI()
         self.crossref = CrossRefAPI()
         self.cache = ExistenceCache(db_path)
+        self.concurrency_limit = concurrency_limit
 
     def _find_best_match(self, reference: dict, results: list) -> tuple[Optional[dict], int]:
         ref_title = reference.get("title", "")
@@ -156,29 +156,28 @@ class ExistenceAgent(BaseAgent):
             "metadata_errors": errors
         }
 
-    async def process(self, ctx: PipelineContext) -> AgentResult:
-        all_results = {}
-        for cit in ctx.citations:
+    async def _process_single_citation(self, cit: dict, semaphore: asyncio.Semaphore) -> tuple[int, dict]:
+        """A bounded asynchronous worker for processing precisely one citation."""
+        async with semaphore:
             cid = cit["id"]
             reference = cit.get("reference", {})
             if not reference:
-                continue
+                return cid, {"status": "error", "reason": "No reference data"}
 
             ref_title = reference.get("title", "") or ""
             ref_year = reference.get("year", "") or ""
             ref_authors = reference.get("authors", "") or ""
             first_author = get_first_author_lastname(ref_authors)
 
-            # Check Cache
-            cached_data = self.cache.get(ref_title, first_author, ref_year)
+            # Check Database Cache Non-Blocking
+            cached_data = await self.cache.get(ref_title, first_author, ref_year)
             if cached_data:
                 cached_data["cached"] = True
-                all_results[str(cid)] = cached_data
-                continue
+                return cid, cached_data
 
             query = f"{ref_title} {first_author} {ref_year}".strip()
             if not query:
-                continue
+                return cid, {"status": "error", "reason": "Insufficient query parameters"}
 
             try:
                 results = await self.semantic_scholar.search(query, limit=5)
@@ -192,8 +191,7 @@ class ExistenceAgent(BaseAgent):
                         "search_results": len(results),
                         "cached": False
                     }
-                    all_results[str(cid)] = response_data
-                    continue
+                    return cid, response_data
                     
                 paper_id = match.get("paperId", "")
                 
@@ -216,17 +214,33 @@ class ExistenceAgent(BaseAgent):
                     "cached": False
                 }
                 
-                self.cache.set(ref_title, first_author, ref_year, paper_id, response_data)
-                all_results[str(cid)] = response_data
+                # Write to DB asynchronously
+                await self.cache.set(ref_title, first_author, ref_year, paper_id, response_data)
+                return cid, response_data
                 
             except APIError as e:
-                all_results[str(cid)] = {
+                return cid, {
                     "status": "not_found", 
                     "reason": f"API Error: {str(e)}"
                 }
             except Exception as e:
-                logging.error(f"Existence checker error: {e}")
-                pass
+                logging.error(f"Existence checker error (Cid {cid}): {e}")
+                return cid, {"status": "error", "reason": f"Unhandled exception: {str(e)}"}
+
+    async def process(self, ctx: PipelineContext) -> AgentResult:
+        await self.cache.init_db()
+        semaphore = asyncio.Semaphore(self.concurrency_limit)
+        
+        # Launch concurrent bounded tasks instead of a strict sequential loop
+        tasks = [
+            self._process_single_citation(cit, semaphore) 
+            for cit in ctx.citations
+        ]
+        
+        results_tuples = await asyncio.gather(*tasks)
+        
+        # Merge results into final dict exactly mimicking old output schema
+        all_results = {str(cid): res for cid, res in results_tuples}
                 
         return AgentResult(
             agent_name=self.name,

@@ -11,6 +11,7 @@ if not os.getenv("GEMINI_API_KEY"):
 
 from server.core.pipeline import PipelineOrchestrator
 from server.agents import registry  # Forces __init__.py to run
+from server.utils.apis import APIClientManager
 
 async def main():
     print(f"Loaded agents in order:")
@@ -40,6 +41,8 @@ async def main():
     print("\n=================== SAMPLE CITATIONS ===================")
     for cit in report.get("citations", [])[:3]: # print first 3 to avoid spam
         print(json.dumps(cit, indent=2))
+        
+    await APIClientManager.close_session()
 
 if __name__ == "__main__":
     asyncio.run(main())
