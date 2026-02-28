@@ -31,30 +31,19 @@
 /* ── Cards track ─────────────────────────────────────────── */
 .sc-track {
     padding: 60px 48px 160px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+    display: block;
 }
 
 /* ── Sticky wrapper ──────────────────────────────────────── */
 .sc-sticky {
     position: sticky;
     top: 100px;
+    /* Height 0 so the next sticky element slides up and sits over it */
     height: 0;
     display: flex;
     align-items: flex-start;
     justify-content: center;
     z-index: 10;
-
-    /* Scroll reveal */
-    opacity: 0;
-    transform: translateY(60px);
-    transition: opacity 0.7s ease, transform 0.7s ease;
-}
-
-.sc-sticky.sc-visible {
-    opacity: 1;
-    transform: translateY(0);
 }
 
 /* ── Spacer ──────────────────────────────────────────────── */
@@ -63,7 +52,7 @@
 }
 
 .sc-spacer-last {
-    height: 100px;
+    height: 80vh;
 }
 
 /* ── The card ────────────────────────────────────────────── */
@@ -75,21 +64,61 @@
     position: relative;
     overflow: hidden;
     cursor: pointer;
-    transform-style: preserve-3d;
-    will-change: transform;
-    transition: box-shadow 0.3s ease, transform 0.15s ease;
+    transition: box-shadow 0.3s ease, transform 0.3s ease, opacity 0.7s ease;
     box-shadow:
         0 8px 40px rgba(28, 25, 22, 0.10),
         0 2px 8px rgba(28, 25, 22, 0.06);
+
+    /* Scroll reveal initial state */
+    opacity: 0;
+    transform: translateY(60px);
+
+    /* Very slight top offset so each cards sticks out below the one over it */
+    margin-top: calc(var(--index, 0) * 8px);
 }
 
+/* When the parent sticky wrapper becomes visible, reveal the card */
+.sc-sticky.sc-visible .sc-card {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Give each card a slight offset index variable so you can see the stack growing below it */
+.sc-sticky:nth-child(1) .sc-card {
+    --index: 0;
+}
+
+.sc-sticky:nth-child(3) .sc-card {
+    --index: 1;
+}
+
+.sc-sticky:nth-child(5) .sc-card {
+    --index: 2;
+}
+
+.sc-sticky:nth-child(7) .sc-card {
+    --index: 3;
+}
+
+.sc-sticky:nth-child(9) .sc-card {
+    --index: 4;
+}
+
+.sc-sticky:nth-child(11) .sc-card {
+    --index: 5;
+}
+
+/* NOTE: .sc-spacer divs are interleaved, which is why we use odd children above */
+
+
 .sc-card:hover {
+    transform: translateY(-4px) scale(1) !important;
     box-shadow:
-        0 24px 80px rgba(28, 25, 22, 0.15),
+        0 24px 80px rgba(28, 25, 22, 0.14),
         0 8px 20px rgba(28, 25, 22, 0.08);
 }
 
-/* ── Shimmer overlay (radial gradient following cursor) ── */
+/* ── Shimmer overlay ── */
 .sc-shimmer {
     position: absolute;
     inset: 0;
@@ -157,7 +186,6 @@
     right: 28px;
     font-size: 0.65rem;
     letter-spacing: 0.1em;
-    color: var(--rule);
     color: rgba(28, 25, 22, 0.2);
 }
 
