@@ -2,15 +2,12 @@
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 /* ── Hero Section ────────────────────────────────────────── */
 .hero-section {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 /* Above-fold: fills viewport, centered */
@@ -184,6 +181,7 @@
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 380px;
+  height: calc(100vh - 73px);
   overflow: hidden;
 }
 
