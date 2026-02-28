@@ -32,6 +32,40 @@ const MOCK_EDGES: EdgeData[] = [
 
 // -- Mock Logic Removal in Progress --
 
+// Map backend report JSON to SynthesisPanel shape (no backend changes).
+function reportToSynthesisData(report: any): {
+  trustScore: number;
+  totalCitations: number;
+  verified: number;
+  suspicious: number;
+  fabricated: number;
+  aiProbability: number;
+  conclusion: string;
+} {
+  if (!report) {
+    return {
+      trustScore: 0,
+      totalCitations: 0,
+      verified: 0,
+      suspicious: 0,
+      fabricated: 0,
+      aiProbability: 0,
+      conclusion: 'No report.',
+    };
+  }
+  const summary = report.summary ?? {};
+  const n = (v: unknown) => (Number(v) || 0);
+  return {
+    trustScore: n(report.integrity_score),
+    totalCitations: n(report.total_citations),
+    verified: n(summary.supported),
+    suspicious: n(summary.uncertain),
+    fabricated: n(summary.not_found) + n(summary.contradicted),
+    aiProbability: n(report.stats?.ai_probability),
+    conclusion: report.summary?.conclusion ?? 'Analysis complete.',
+  };
+}
+
 // ── App ───────────────────────────────────────────────────
 type Phase = 'idle' | 'analyzing' | 'synthesis';
 
@@ -211,17 +245,7 @@ export default function App() {
           <div className="panel-graph">
             <KnowledgeGraph nodes={nodes} edges={edges} />
             {phase === 'synthesis' && report && (
-              <SynthesisPanel
-                data={{
-                  trustScore: report.integrity_score,
-                  totalCitations: report.total_citations,
-                  verified: report.summary?.supported || 0,
-                  suspicious: report.summary?.uncertain || 0,
-                  fabricated: report.summary?.not_found || 0,
-                  aiProbability: report.stats?.ai_probability || 0,
-                  conclusion: report.summary?.conclusion || "Analysis complete."
-                }}
-              />
+              <SynthesisPanel data={reportToSynthesisData(report)} />
             )}
           </div>
 
