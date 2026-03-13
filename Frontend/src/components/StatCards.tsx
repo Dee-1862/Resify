@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, Fragment } from 'react';
 import './StatCards.css';
 
 const STATS = [
@@ -80,34 +80,15 @@ export function StatCards() {
                     if (entry.isIntersecting) {
                         entry.target.classList.add('sc-visible');
                         const idx = stickies.indexOf(entry.target as HTMLDivElement);
-                        dots.forEach((d, i) => d.classList.toggle('sc-dot-on', i === idx));
+                        if (idx !== -1) {
+                            dots.forEach((d, i) => d.classList.toggle('sc-dot-on', i === idx));
+                        }
                     }
                 });
             },
             { threshold: 0.25, rootMargin: '-80px 0px -80px 0px' }
         );
         stickies.forEach(s => obs.observe(s));
-
-        // 3D tilt + shimmer on mouse move
-        const cards = stickies.map(s => s.querySelector<HTMLDivElement>('.sc-card')).filter(Boolean) as HTMLDivElement[];
-        const onMove = (card: HTMLDivElement) => (e: MouseEvent) => {
-            const r = card.getBoundingClientRect();
-            const x = (e.clientX - r.left) / r.width - 0.5;
-            const y = (e.clientY - r.top) / r.height - 0.5;
-            card.style.transform = `perspective(900px) rotateY(${x * 10}deg) rotateX(${-y * 10}deg) translateZ(12px)`;
-            card.style.setProperty('--mx', `${(x + 0.5) * 100}%`);
-            card.style.setProperty('--my', `${(y + 0.5) * 100}%`);
-        };
-        const onLeave = (card: HTMLDivElement) => () => { card.style.transform = ''; };
-
-        const handlers: Array<[HTMLDivElement, (e: MouseEvent) => void, () => void]> = [];
-        cards.forEach(card => {
-            const move = onMove(card);
-            const leave = onLeave(card);
-            card.addEventListener('mousemove', move);
-            card.addEventListener('mouseleave', leave);
-            handlers.push([card, move, leave]);
-        });
 
         // Parallax watermarks on scroll
         const onScroll = () => {
@@ -120,10 +101,6 @@ export function StatCards() {
 
         return () => {
             obs.disconnect();
-            handlers.forEach(([card, move, leave]) => {
-                card.removeEventListener('mousemove', move);
-                card.removeEventListener('mouseleave', leave);
-            });
             window.removeEventListener('scroll', onScroll);
         };
     }, []);
@@ -141,9 +118,9 @@ export function StatCards() {
             {/* Cards track */}
             <div className="sc-track">
                 {STATS.map((item, i) => (
-                    <div key={i}>
+                    <Fragment key={i}>
                         <div
-                            className={`sc-sticky sc-c${i}`}
+                            className={`sc-sticky`}
                             ref={el => { stickiesRef.current[i] = el; }}
                         >
                             <div className={`sc-card sc-accent-${item.accent}`}>
@@ -176,7 +153,7 @@ export function StatCards() {
                             </div>
                         </div>
                         <div className={`sc-spacer ${i === STATS.length - 1 ? 'sc-spacer-last' : ''}`} />
-                    </div>
+                    </Fragment>
                 ))}
             </div>
 
