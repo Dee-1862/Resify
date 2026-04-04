@@ -1,4 +1,6 @@
 import asyncio
+import ssl
+import certifi
 import aiohttp
 import xml.etree.ElementTree as ET
 from typing import Optional, List, Dict, Any
@@ -16,8 +18,8 @@ class APIClientManager:
     @classmethod
     def get_session(cls) -> aiohttp.ClientSession:
         if cls._session is None or cls._session.closed:
-            # Create a session with a balanced connector limit for scraping
-            connector = aiohttp.TCPConnector(limit=100, limit_per_host=20)
+            ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+            connector = aiohttp.TCPConnector(limit=100, limit_per_host=20, ssl=ssl_ctx)
             cls._session = aiohttp.ClientSession(connector=connector)
         return cls._session
 
@@ -28,21 +30,34 @@ class APIClientManager:
 
 class SemanticScholarAPI:
     BASE_URL = "https://api.semanticscholar.org/graph/v1"
+    _last_request_time: float = 0.0
+    _min_interval: float = 0.35  # ~3 req/sec max to stay under rate limits
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
         self.headers = {"x-api-key": api_key} if api_key else {}
         self.fields = "title,authors,year,abstract,paperId,externalIds,citationCount"
 
+    async def _throttle(self):
+        """Simple rate limiter shared across all instances."""
+        now = asyncio.get_event_loop().time()
+        wait = SemanticScholarAPI._min_interval - (now - SemanticScholarAPI._last_request_time)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        SemanticScholarAPI._last_request_time = asyncio.get_event_loop().time()
+
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        await self._throttle()
         url = f"{self.BASE_URL}/paper/search?query={quote_plus(query)}&limit={limit}&fields={self.fields}"
         return await self._get(url, is_search=True)
 
     async def get_paper(self, paper_id: str) -> Optional[Dict[str, Any]]:
+        await self._throttle()
         url = f"{self.BASE_URL}/paper/{paper_id}?fields={self.fields}"
         return await self._get(url)
 
     async def get_paper_by_doi(self, doi: str) -> Optional[Dict[str, Any]]:
+        await self._throttle()
         url = f"{self.BASE_URL}/paper/DOI:{doi}?fields={self.fields}"
         return await self._get(url)
 

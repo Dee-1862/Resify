@@ -128,12 +128,26 @@ async def analyze_upload(file: UploadFile = File(...)):
         )
 
     try:
-        # Pass PDF bytes through the pipeline
-        # The fetcher agent is responsible for PDF→text extraction
+        # Extract text from PDF bytes before passing to pipeline
+        from server.utils.pdf import PDFScraper
+        try:
+            extracted_text = PDFScraper.extract_text_from_bytes(content)
+        except Exception as pdf_err:
+            return JSONResponse(
+                status_code=400,
+                content=ErrorResponse(
+                    error=ErrorDetail(
+                        code="PDF_PARSE_FAILED",
+                        message=f"Could not extract text from PDF: {pdf_err}",
+                        stage="validation",
+                    )
+                ).model_dump(),
+            )
+
         report = await pipeline.run(
             url="",
             doi="",
-            text="",  # fetcher agent handles PDF bytes via metadata
+            text=extracted_text,
         )
         return report
     except Exception as e:
