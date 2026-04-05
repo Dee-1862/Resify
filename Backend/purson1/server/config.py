@@ -4,7 +4,14 @@ CiteSafe Configuration
 All settings loaded from environment / .env file via pydantic-settings.
 """
 
+import os
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+# Resolve paths relative to this file so they work regardless of cwd
+_here = os.path.dirname(os.path.abspath(__file__))
+_env_file = os.path.join(_here, "..", ".env")
+_default_cache_db = os.path.join(_here, "..", "cache.db")
 
 
 class Settings(BaseSettings):
@@ -27,7 +34,7 @@ class Settings(BaseSettings):
     EMBEDDING_MARGIN_THRESHOLD: float = 0.2
 
     # --- Cache ---
-    CACHE_DB_PATH: str = "cache.db"
+    CACHE_DB_PATH: str = _default_cache_db
     SOURCE_CACHE_TTL_DAYS: int = 30
     VERIFICATION_CACHE_TTL_DAYS: int = 7
     PAPER_CACHE_TTL_HOURS: int = 24
@@ -45,7 +52,13 @@ class Settings(BaseSettings):
     # --- Agent timeouts ---
     AGENT_TIMEOUT_SECONDS: float = 500.0
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    @model_validator(mode="after")
+    def _resolve_relative_paths(self):
+        if not os.path.isabs(self.CACHE_DB_PATH):
+            self.CACHE_DB_PATH = os.path.join(_here, "..", self.CACHE_DB_PATH)
+        return self
+
+    model_config = {"env_file": _env_file, "env_file_encoding": "utf-8"}
 
 
 settings = Settings()

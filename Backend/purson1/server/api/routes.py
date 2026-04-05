@@ -59,13 +59,15 @@ async def analyze_paper(paper: PaperInput):
     Output: AnalysisReport matching the frontend contract
     """
     try:
-        # Check paper cache first (if text-based)
-        if paper.text:
-            paper_hash = cache.hash_paper(paper.text)
-            cached = cache.get_analysis(paper_hash)
-            if cached:
-                logger.info("Returning cached paper analysis")
-                return cached
+        paper_key = cache.make_paper_key(
+            url=paper.url or "",
+            doi=paper.doi or "",
+            text=paper.text or "",
+        )
+        cached = cache.get_analysis(paper_key)
+        if cached:
+            logger.info("Returning cached paper analysis")
+            return cached
 
         report = await pipeline.run(
             url=paper.url or "",
@@ -73,10 +75,7 @@ async def analyze_paper(paper: PaperInput):
             text=paper.text or "",
         )
 
-        # Cache the result
-        if paper.text:
-            cache.set_analysis(cache.hash_paper(paper.text), report)
-
+        cache.set_analysis(paper_key, report)
         return report
 
     except Exception as e:
@@ -171,7 +170,7 @@ async def analyze_upload(file: UploadFile = File(...)):
 import aiosqlite
 import os
 
-OVERRIDES_DB = os.path.join(os.path.dirname(os.path.dirname(__file__)), "overrides.db")
+OVERRIDES_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "overrides.db")
 
 async def _init_overrides_db():
     async with aiosqlite.connect(OVERRIDES_DB) as db:
@@ -309,18 +308,22 @@ async def _handle_ws_analyze(websocket: WebSocket):
         else:
             text = paper_input
 
+        # Check cache before running the pipeline
+        paper_key = cache.make_paper_key(url=url, doi=doi, text=text)
+        cached = cache.get_analysis(paper_key)
+        if cached:
+            logger.info("WebSocket: returning cached analysis")
+            await websocket.send_text(json.dumps({"type": "progress", "message": "Loaded from cache", "progress": 100}))
+            await websocket.send_text(json.dumps({"type": "result", "report": cached}))
+            return
+
         # Progress callback → sends WS messages in contract format
         async def on_progress(message: str, progress: float):
-            """
-            Send progress in frontend contract format:
-              {"type": "progress", "message": "...", "progress": 25}
-            Progress is 0-100 percentage.
-            """
             try:
                 await websocket.send_text(json.dumps({
                     "type": "progress",
                     "message": message,
-                    "progress": round(progress),  # integer 0-100
+                    "progress": round(progress),
                 }))
             except Exception:
                 pass  # client may have disconnected
@@ -332,6 +335,9 @@ async def _handle_ws_analyze(websocket: WebSocket):
             text=text,
             on_progress=on_progress,
         )
+
+        # Cache the result for future requests
+        cache.set_analysis(paper_key, report)
 
         # Send final report in contract format
         await websocket.send_text(json.dumps({

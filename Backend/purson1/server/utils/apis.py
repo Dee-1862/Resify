@@ -136,6 +136,87 @@ class ArXivAPI:
         except ET.ParseError:
             return None
 
+class OpenAlexAPI:
+    """
+    OpenAlex — free, no auth, 200M+ works.
+    https://docs.openalex.org/api-entities/works/search-works
+    """
+    BASE_URL = "https://api.openalex.org"
+    _last_request_time: float = 0.0
+    _min_interval: float = 0.12  # generous – OpenAlex allows 10 req/sec
+
+    async def _throttle(self):
+        now = asyncio.get_event_loop().time()
+        wait = OpenAlexAPI._min_interval - (now - OpenAlexAPI._last_request_time)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        OpenAlexAPI._last_request_time = asyncio.get_event_loop().time()
+
+    @staticmethod
+    def _parse_work(work: Dict) -> Dict[str, Any]:
+        authors = []
+        for auth in work.get("authorships", []):
+            name = auth.get("author", {}).get("display_name", "")
+            if name:
+                authors.append(name)
+        pub_year = work.get("publication_year")
+        title = work.get("title", "") or ""
+        abstract = work.get("abstract_inverted_index")
+        # Reconstruct abstract from inverted index if present
+        if abstract:
+            try:
+                words = sorted(
+                    [(pos, word) for word, positions in abstract.items() for pos in positions]
+                )
+                abstract = " ".join(w for _, w in words[:120])
+            except Exception:
+                abstract = ""
+        return {
+            "title": title,
+            "authors": authors,
+            "year": pub_year,
+            "abstract": abstract or "",
+            "paperId": work.get("id", ""),
+        }
+
+    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        await self._throttle()
+        url = (
+            f"{self.BASE_URL}/works?search={quote_plus(query)}"
+            f"&per-page={limit}"
+            f"&select=id,title,authorships,publication_year,abstract_inverted_index"
+            f"&mailto=resify@example.com"
+        )
+        session = APIClientManager.get_session()
+        try:
+            async with session.get(url, timeout=12) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return [self._parse_work(w) for w in data.get("results", [])]
+                return []
+        except Exception:
+            return []
+
+    async def search_by_title(self, title: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Exact title filter — more precise than keyword search."""
+        await self._throttle()
+        url = (
+            f"{self.BASE_URL}/works?filter=title.search:{quote_plus(title)}"
+            f"&per-page={limit}"
+            f"&select=id,title,authorships,publication_year,abstract_inverted_index"
+            f"&mailto=resify@example.com"
+        )
+        session = APIClientManager.get_session()
+        try:
+            async with session.get(url, timeout=12) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return [self._parse_work(w) for w in data.get("results", [])]
+                return []
+        except Exception:
+            return []
+
+
 class CrossRefAPI:
     BASE_URL = "https://api.crossref.org/works"
 

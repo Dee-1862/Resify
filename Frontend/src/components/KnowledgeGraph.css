@@ -1,4 +1,8 @@
-.kg-container {
+/* ═══════════════════════════════════════════════════════
+   INVESTIGATION MAP  — refined pipeline visualization
+   ═══════════════════════════════════════════════════════ */
+
+.kg-wrap {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -7,189 +11,342 @@
     overflow: hidden;
 }
 
+/* ── Top bar ──────────────────────────────────────────── */
+
 .kg-head {
-    padding: 0.85rem 1.25rem;
+    padding: 0.8rem 1.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
     background: var(--paper);
+    gap: 1rem;
 }
 
-.kg-status-chips {
+.kg-head-left {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.chip {
-    padding: 0.2rem 0.6rem;
-    font-size: 0.72rem;
-    border: 1px solid;
+.kg-head-sub {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.02em;
 }
 
-.chip-active {
-    border-color: var(--verified);
+.kg-head-sub-done {
     color: var(--verified);
 }
 
-.chip-error {
-    border-color: var(--fabricated);
-    color: var(--fabricated);
+.kg-head-right {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
 
-/* Canvas */
+.kg-progress-track {
+    width: 120px;
+    height: 3px;
+    background: rgba(28, 25, 22, 0.1);
+    overflow: hidden;
+}
+
+.kg-progress-fill {
+    height: 100%;
+    background: var(--ink);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kg-progress-pct {
+    font-size: 0.68rem;
+    color: var(--ink-faint);
+    min-width: 2.6rem;
+    text-align: right;
+}
+
+/* ── Canvas ───────────────────────────────────────────── */
+
 .kg-canvas {
     flex: 1;
     position: relative;
     overflow: hidden;
-    background: var(--paper-warm);
-    /* Fine dot grid pattern */
-    background-image: radial-gradient(circle, var(--rule) 1px, transparent 1px);
-    background-size: 24px 24px;
+    min-height: 280px;
+    background-color: var(--paper-warm);
+    /* Dot-matrix grid instead of line grid — subtler */
+    background-image: radial-gradient(
+        circle,
+        rgba(28, 25, 22, 0.12) 1px,
+        transparent 1px
+    );
+    background-size: 28px 28px;
 }
+
+/* Scan-line during active processing */
+.kg-scanline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(28, 25, 22, 0.06) 20%,
+        rgba(28, 25, 22, 0.14) 50%,
+        rgba(28, 25, 22, 0.06) 80%,
+        transparent 100%
+    );
+    animation: kgScan 2.8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 20;
+}
+
+@keyframes kgScan {
+    0%   { top: -2px; opacity: 0; }
+    8%   { opacity: 1; }
+    92%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+}
+
+/* ── SVG edges ────────────────────────────────────────── */
 
 .kg-svg {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    top: 0;
+    left: 0;
+    overflow: visible;
+    pointer-events: none;
 }
 
 .kg-edge {
-    stroke: var(--rule);
-    stroke-width: 0.5;
-    stroke-dasharray: 3 3;
-    transition: stroke 0.4s;
+    fill: none;
+    stroke: rgba(28, 25, 22, 0.15);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 6;
+    transition: stroke 0.5s ease, stroke-width 0.4s ease;
 }
 
-.kg-edge-active {
-    stroke: var(--ink-mid);
+.kg-edge-on {
+    stroke: var(--ink);
+    stroke-width: 2;
     stroke-dasharray: none;
-    stroke-width: 0.6;
 }
 
-/* Nodes */
+.kg-edge-done {
+    stroke: var(--verified);
+    stroke-width: 1.5;
+    stroke-dasharray: none;
+    opacity: 0.6;
+}
+
+.kg-edge-glow {
+    fill: none;
+    stroke: rgba(28, 25, 22, 0.3);
+    stroke-width: 6;
+    stroke-linecap: round;
+}
+
+/* Flow particles */
+.kg-p   { fill: var(--ink); }
+.kg-p-0 { opacity: 0.95; }
+.kg-p-1 { opacity: 0.45; }
+.kg-p-2 { opacity: 0.2; }
+
+/* ── Node base ────────────────────────────────────────── */
+
 .kg-node {
     position: absolute;
     transform: translate(-50%, -50%);
     z-index: 10;
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.kg-node-label {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    line-height: 1.3;
-    padding: 0.4rem 0.75rem;
-    white-space: nowrap;
-    max-width: 160px;
-    white-space: normal;
-    text-align: center;
-    background: var(--paper);
-    border: 1.5px solid var(--ink);
-    color: var(--ink);
+.kg-node-body {
+    display: flex;
+    align-items: center;
+    gap: 0;
     position: relative;
     z-index: 2;
-    box-shadow: 2px 2px 0 rgba(28, 25, 22, 0.15);
+    background: var(--paper);
+    border: 1.5px solid rgba(28, 25, 22, 0.2);
+    transition:
+        border-color 0.35s ease,
+        box-shadow 0.35s ease,
+        background 0.35s ease;
 }
 
-/* Type variations */
-.kg-node-root .kg-node-label {
-    font-family: var(--font-display);
+/* Agent code badge (left strip) */
+.kg-code {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
     font-weight: 700;
-    font-size: 0.85rem;
-    border-width: 2px;
-    padding: 0.55rem 1.1rem;
-    max-width: 200px;
-    box-shadow: 3px 3px 0 var(--ink);
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    background: rgba(28, 25, 22, 0.05);
+    border-right: 1.5px solid rgba(28, 25, 22, 0.12);
+    padding: 0.55rem 0.45rem;
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    transition: color 0.35s ease, background 0.35s ease, border-color 0.35s ease;
+    flex-shrink: 0;
+    line-height: 1;
 }
 
-.kg-node-agent .kg-node-label {
-    border-style: dashed;
-    color: var(--ink-mid);
+.kg-node-text {
+    padding: 0.45rem 0.75rem;
+    min-width: 80px;
 }
 
-.kg-node-contradiction .kg-node-label {
-    border-color: var(--fabricated);
-    background: var(--fabricated-bg);
-    color: var(--fabricated);
-    box-shadow: 2px 2px 0 var(--fabricated);
+.kg-label {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    line-height: 1.3;
+    white-space: nowrap;
+    transition: color 0.35s ease;
 }
 
-.kg-node-finding .kg-node-label {
-    border-color: var(--verified);
-    background: var(--verified-bg);
+.kg-desc {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.03em;
+    margin-top: 0.15rem;
+    line-height: 1;
+    transition: color 0.35s ease, opacity 0.35s ease;
+}
+
+.kg-desc-pending  { color: var(--ink-faint); opacity: 0.5; }
+.kg-desc-active   { color: var(--ink); opacity: 1; }
+.kg-desc-complete { color: var(--verified); opacity: 0.8; }
+.kg-desc-error    { color: var(--fabricated); opacity: 1; }
+
+/* Complete tick (right side) */
+.kg-tick {
+    font-size: 0.65rem;
+    font-weight: 700;
     color: var(--verified);
+    padding: 0 0.5rem 0 0;
+    flex-shrink: 0;
+    animation: kgTickIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Status */
-.kg-status-active .kg-node-label {
+@keyframes kgTickIn {
+    from { opacity: 0; transform: scale(0.3) rotate(-30deg); }
+    to   { opacity: 1; transform: scale(1)   rotate(0deg);   }
+}
+
+/* ── Root node ────────────────────────────────────────── */
+
+.kg-nt-root .kg-node-body {
+    background: var(--ink);
     border-color: var(--ink);
 }
 
-/* Pulse ring */
-.kg-node-pulse {
+.kg-nt-root .kg-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--paper);
+    white-space: nowrap;
+    padding: 0.55rem 1rem;
+    min-width: 0;
+}
+
+/* Root complete state */
+.kg-nt-root.kg-ns-complete .kg-node-body {
+    background: var(--verified);
+    border-color: var(--verified);
+}
+
+/* ── Status: active ── THE KEY STATE ─────────────────── */
+
+.kg-ns-active .kg-node-body {
+    border-color: var(--ink) !important;
+    border-width: 2px;
+    background: var(--paper) !important;
+    box-shadow:
+        2px 2px 0 var(--ink),
+        0 0 0 3px rgba(28, 25, 22, 0.07),
+        0 6px 20px rgba(28, 25, 22, 0.12);
+}
+
+.kg-ns-active .kg-code {
+    color: var(--ink) !important;
+    background: rgba(28, 25, 22, 0.08) !important;
+    border-color: rgba(28, 25, 22, 0.25) !important;
+}
+
+.kg-ns-active .kg-label {
+    color: var(--ink) !important;
+}
+
+/* ── Status: complete ─────────────────────────────────── */
+
+.kg-ns-complete.kg-nt-agent .kg-node-body {
+    border-color: var(--verified) !important;
+    background: var(--verified-bg) !important;
+    box-shadow: 1px 1px 0 var(--verified);
+}
+
+.kg-ns-complete.kg-nt-agent .kg-code {
+    color: var(--verified) !important;
+    background: rgba(44, 95, 58, 0.07) !important;
+    border-color: rgba(44, 95, 58, 0.2) !important;
+}
+
+.kg-ns-complete.kg-nt-agent .kg-label {
+    color: var(--verified) !important;
+}
+
+/* ── Animated halo rings (active only) ───────────────── */
+
+.kg-halo {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100% + 20px);
-    height: calc(100% + 20px);
-    border: 1px solid var(--ink-faint);
-    animation: pulseRing 1.8s ease-out infinite;
+    inset: 0;
     pointer-events: none;
+    border: 1px solid var(--ink-faint);
     z-index: 1;
 }
 
-@keyframes pulseRing {
-    0% {
-        opacity: 0.8;
-        transform: translate(-50%, -50%) scale(0.95);
-    }
-
-    100% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(1.3);
-    }
+.kg-halo-1 {
+    animation: kgHalo 2s ease-out infinite;
 }
 
-/* Legend */
+.kg-halo-2 {
+    animation: kgHalo 2s ease-out 0.9s infinite;
+}
+
+@keyframes kgHalo {
+    0%   { opacity: 0.5; transform: scale(0.96); }
+    100% { opacity: 0;   transform: scale(1.28); }
+}
+
+/* ── Legend ───────────────────────────────────────────── */
+
 .kg-legend {
-    padding: 0.6rem 1.25rem;
+    padding: 0.55rem 1.25rem;
     display: flex;
     gap: 1.5rem;
     flex-shrink: 0;
     background: var(--paper);
+    align-items: center;
 }
 
-.legend-item {
+.kg-leg-item {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
 
-.legend-dot {
-    width: 10px;
-    height: 10px;
+.kg-ldot {
+    width: 9px;
+    height: 9px;
     border: 1.5px solid;
     flex-shrink: 0;
+    display: inline-block;
 }
 
-.dot-root {
-    border-color: var(--ink);
-}
-
-.dot-agent {
-    border-color: var(--ink-mid);
-    border-style: dashed;
-}
-
-.dot-finding {
-    border-color: var(--verified);
-    background: var(--verified-bg);
-}
-
-.dot-contradiction {
-    border-color: var(--fabricated);
-    background: var(--fabricated-bg);
-}
+.kg-ldot-root    { background: var(--ink);      border-color: var(--ink); }
+.kg-ldot-pending { border-color: rgba(28,25,22,0.25); border-style: dashed; }
+.kg-ldot-active  { border-color: var(--ink); box-shadow: 0 0 0 2px rgba(28,25,22,0.1); }
+.kg-ldot-done    { border-color: var(--verified); background: var(--verified-bg); }

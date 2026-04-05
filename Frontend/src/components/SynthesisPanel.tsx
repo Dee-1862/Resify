@@ -1,5 +1,5 @@
 import './SynthesisPanel.css';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface CitationDetail {
     id: number;
@@ -42,6 +42,35 @@ export function SynthesisPanel({ data }: { data: SynthesisData }) {
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
     const [overrides, setOverrides] = useState<Record<string, Override>>({});
     const [editingId, setEditingId] = useState<number | null>(null);
+
+    // Drag state
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+    const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    const onDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        // Only drag from the header, ignore clicks on buttons/links
+        if ((e.target as HTMLElement).closest('button,a')) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const rect = cardRef.current?.getBoundingClientRect();
+        dragRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            origX: pos?.x ?? (rect ? rect.left : 0),
+            origY: pos?.y ?? (rect ? rect.top : 0),
+        };
+    }, [pos]);
+
+    const onDragMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!dragRef.current) return;
+        const dx = e.clientX - dragRef.current.startX;
+        const dy = e.clientY - dragRef.current.startY;
+        setPos({ x: dragRef.current.origX + dx, y: dragRef.current.origY + dy });
+    }, []);
+
+    const onDragEnd = useCallback(() => {
+        dragRef.current = null;
+    }, []);
 
     // Load existing overrides for this paper
     useEffect(() => {
@@ -119,27 +148,48 @@ export function SynthesisPanel({ data }: { data: SynthesisData }) {
         return s === filter;
     });
 
-    const toggle = (id: number) => {
+    const toggle = (id: number, element: HTMLElement | null) => {
         setExpanded(prev => {
             const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+                if (element) {
+                    setTimeout(() => {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 50);
+                }
+            }
             return next;
         });
     };
 
+    const cardStyle: React.CSSProperties = pos
+        ? { position: 'fixed', left: pos.x, top: pos.y, margin: 0 }
+        : {};
+
     return (
-        <div className="synthesis-overlay anim-fade-up">
-            <div className="synthesis-card">
-                <div className="synth-head rule-bottom">
+        <div className={`synthesis-overlay anim-fade-up${pos ? ' synthesis-overlay-free' : ''}`}>
+            <div className="synthesis-card" ref={cardRef} style={cardStyle}>
+                <div
+                    className="synth-head rule-bottom synth-drag-handle"
+                    onPointerDown={onDragStart}
+                    onPointerMove={onDragMove}
+                    onPointerUp={onDragEnd}
+                    onPointerCancel={onDragEnd}
+                >
                     <span className="label">Integrity Report</span>
-                    <span className="synth-ts mono">{new Date().toLocaleTimeString()}</span>
+                    <div className="synth-head-right">
+                        <span className="synth-drag-hint mono">⠿ drag</span>
+                        <span className="synth-ts mono">{new Date().toLocaleTimeString()}</span>
+                    </div>
                 </div>
 
                 <div className={`synth-verdict ${verdictClass}`}>
-                    <div className="verdict-score mono">{effectiveScore}</div>
+                    <div className="verdict-score mono" title={`Verified: ${counts.supported} | Conflict: ${counts.contradicted} | Unclear: ${counts.uncertain}`}>{effectiveScore}</div>
                     <div className="verdict-right">
-                        <div className="verdict-label">Confidence Score</div>
+                        <div className="verdict-label" title="Score based on proportion of verified vs conflicting/unclear citations" style={{cursor: 'help'}}>Confidence Score ⓘ</div>
                         <div className={`verdict-flag ${verdictClass}`}>{verdict}</div>
                     </div>
                 </div>
@@ -185,7 +235,7 @@ export function SynthesisPanel({ data }: { data: SynthesisData }) {
                         const status = ov ? getOverrideStatusInfo(ov.verdict) : getStatusInfo(c);
                         return (
                             <div key={c.id} className={`detail-row ${status.cls}`}>
-                                <button className="detail-header" onClick={() => toggle(c.id)}>
+                                <button className="detail-header" onClick={(e) => toggle(c.id, e.currentTarget.parentElement)}>
                                     <span className={`detail-badge ${status.cls}`}>
                                         {ov ? '\u270E' : status.badge}
                                     </span>
@@ -230,6 +280,13 @@ export function SynthesisPanel({ data }: { data: SynthesisData }) {
                                             <div className="detail-field">
                                                 <span className="label">Matched Source</span>
                                                 <span>{c.source_found.title}</span>
+                                                <a
+                                                    href={`https://scholar.google.com/scholar?q=${encodeURIComponent(c.source_found.title || c.reference.title || c.reference.authors || '')}`}
+                                                    target="_blank" rel="noreferrer"
+                                                    style={{ display: 'inline-block', marginTop: '0.5rem', color: 'var(--ink-mid)', fontSize: '0.7rem', textDecoration: 'underline' }}
+                                                >
+                                                    Search Source on Google Scholar
+                                                </a>
                                             </div>
                                         )}
 

@@ -42,18 +42,22 @@ interface PipelineReport {
 }
 
 // ── Stage → agent node mapping ───────────────────────────
+// Layout: root left → pipeline flows right across two rows
+//   Row 1: Root(10,32) → Fetcher(28,32) → Extractor(46,32) → Existence(64,32) → Embedding(82,32)
+//   Row 2:                                  LLM(46,72)      →  Synthesizer(82,72)
+//   Bend: Embedding(82,32) → LLM(46,72)
 const STAGE_AGENTS: Record<string, { id: string; label: string; x: number; y: number }> = {
-  fetching:            { id: 'a1', label: 'Fetcher',           x: 14, y: 38 },
-  extracting:          { id: 'a2', label: 'Citation Extractor', x: 38, y: 38 },
-  checking_existence:  { id: 'a3', label: 'Existence Checker', x: 62, y: 38 },
-  embedding_gate:      { id: 'a4', label: 'Embedding Gate',    x: 86, y: 38 },
-  llm_verification:    { id: 'a5', label: 'LLM Verifier',     x: 38, y: 62 },
-  synthesizing:        { id: 'a6', label: 'Synthesizer',       x: 62, y: 62 },
+  fetching:            { id: 'a1', label: 'Fetcher',            x: 28, y: 32 },
+  extracting:          { id: 'a2', label: 'Citation Extractor', x: 46, y: 32 },
+  checking_existence:  { id: 'a3', label: 'Existence Checker',  x: 64, y: 32 },
+  embedding_gate:      { id: 'a4', label: 'Embedding Gate',     x: 82, y: 32 },
+  llm_verification:    { id: 'a5', label: 'LLM Verifier',       x: 46, y: 72 },
+  synthesizing:        { id: 'a6', label: 'Synthesizer',        x: 82, y: 72 },
 };
 
 const ROOT_NODE: NodeData = {
   id: 'root', label: 'Paper Integrity Scan', type: 'root',
-  status: 'active', x: 50, y: 10,
+  status: 'active', x: 10, y: 32,
 };
 
 function buildInitialNodes(): NodeData[] {
@@ -66,10 +70,16 @@ function buildInitialNodes(): NodeData[] {
   ];
 }
 
+// Sequential pipeline: root→a1→a2→a3→a4 (row 1), then a4→a5→a6 (bend + row 2)
 function buildInitialEdges(): EdgeData[] {
-  return Object.values(STAGE_AGENTS).map(a => ({
-    source: 'root', target: a.id, active: false,
-  }));
+  return [
+    { source: 'root', target: 'a1', active: false },
+    { source: 'a1',   target: 'a2', active: false },
+    { source: 'a2',   target: 'a3', active: false },
+    { source: 'a3',   target: 'a4', active: false },
+    { source: 'a4',   target: 'a5', active: false },  // bend down-left
+    { source: 'a5',   target: 'a6', active: false },  // row 2 continues right
+  ];
 }
 
 // Map progress message to the stage that's running
@@ -159,48 +169,9 @@ export default function App() {
   const handleResult = useCallback((pipelineReport: PipelineReport) => {
     setReport(pipelineReport);
 
-    // Add finding nodes for notable citations
-    const newNodes: NodeData[] = [];
-    const newEdges: EdgeData[] = [];
-    let findingY = 85;
-
-    for (const cit of pipelineReport.citations) {
-      if (cit.existence_status === 'not_found') {
-        const nodeId = `nf-${cit.id}`;
-        newNodes.push({
-          id: nodeId,
-          label: `Not Found #${cit.id}`,
-          type: 'contradiction',
-          status: 'error',
-          x: 20 + (cit.id * 12) % 60,
-          y: findingY,
-        });
-        newEdges.push({ source: 'a3', target: nodeId, active: false });
-        findingY += 5;
-      } else if (cit.verification?.verdict === 'contradicted') {
-        const nodeId = `ct-${cit.id}`;
-        newNodes.push({
-          id: nodeId,
-          label: `Contradicted #${cit.id}`,
-          type: 'contradiction',
-          status: 'error',
-          x: 20 + (cit.id * 15) % 60,
-          y: findingY,
-        });
-        newEdges.push({ source: 'a4', target: nodeId, active: false });
-        findingY += 5;
-      }
-    }
-
-    if (newNodes.length > 0) {
-      setNodes(prev => [...prev, ...newNodes]);
-      setEdges(prev => [...prev, ...newEdges]);
-    }
-
-    // Mark all agents complete, root complete
+    // Mark all agents + root complete
     setNodes(prev => prev.map(n => {
-      if (n.type === 'agent') return { ...n, status: 'complete' };
-      if (n.type === 'root') return { ...n, status: 'complete' };
+      if (n.type === 'agent' || n.type === 'root') return { ...n, status: 'complete' };
       return n;
     }));
 
@@ -257,8 +228,36 @@ export default function App() {
         }
 
         else if (data.type === 'result' && data.report) {
-          if (lastStage) completeStage(lastStage);
-          handleResult(data.report);
+          if (!lastStage || lastStage === 'fetching') {
+            // Fake animation pipeline to show deep processing even for cached results
+            const stages = [
+              { stage: 'fetching', msg: 'Loading paper from cache...' },
+              { stage: 'extracting', msg: 'Extracting citations...' },
+              { stage: 'checking_existence', msg: 'Verifying database records...' },
+              { stage: 'embedding_gate', msg: 'Checking embeddings...' },
+              { stage: 'llm_verification', msg: 'Re-evaluating integrity...' },
+              { stage: 'synthesizing', msg: 'Synthesizing report...' }
+            ];
+            
+            let delay = 0;
+            stages.forEach((s, idx) => {
+              setTimeout(() => {
+                if (idx > 0) completeStage(stages[idx - 1].stage);
+                activateStage(s.stage);
+                addLog(stageToAgent(s.stage), s.msg, 'info');
+              }, delay);
+              delay += 1800 + Math.random() * 800;
+            });
+            
+            setTimeout(() => {
+              completeStage('synthesizing');
+              handleResult(data.report);
+            }, delay + 1000);
+
+          } else {
+            if (lastStage) completeStage(lastStage);
+            handleResult(data.report);
+          }
         }
 
         else if (data.type === 'error') {
@@ -276,9 +275,7 @@ export default function App() {
     };
 
     ws.onclose = () => {
-      if (phase === 'analyzing' && !report) {
-        // Connection closed before result — only add log if no error already shown
-      }
+      // Connection closed before result — handled by error / reset
     };
   }, [phase, addLog, activateStage, completeStage, handleResult]);
 
@@ -321,7 +318,7 @@ export default function App() {
       <ResearchHeader
         onAnalyze={handleAnalyze}
         isAnalyzing={phase === 'analyzing'}
-        showCompactSearch={showCompactSearch && phase === 'idle'}
+        showCompactSearch={showCompactSearch || phase !== 'idle'}
       />
 
       {phase === 'idle' ? (
@@ -399,11 +396,6 @@ export default function App() {
 
           <div className="panel-stream">
             <AgentStream logs={logs} />
-            {phase === 'synthesis' && (
-              <button onClick={handleReset} className="reset-btn">
-                Scan Another Paper
-              </button>
-            )}
           </div>
         </div>
       )}

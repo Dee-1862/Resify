@@ -186,6 +186,12 @@ class CiteSafeCache:
         """Public helper for generating paper hashes."""
         return self._paper_hash(text)
 
+    @staticmethod
+    def make_paper_key(url: str = "", doi: str = "", text: str = "") -> str:
+        """Generate a consistent cache key from whatever identifier is available."""
+        identifier = url or doi or text[:200]
+        return hashlib.sha256(identifier.encode()).hexdigest()[:32]
+
     def get_stats(self) -> dict:
         counts = {}
         for table in ("sources", "verifications", "papers"):
