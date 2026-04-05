@@ -57,13 +57,13 @@ def _register_default_agents():
     # Test agents (always available)
     from server.agents import dummy  # noqa: F401
 
-    # Real agents
+    # Real agents — full pipeline
     from server.agents import fetcher           # noqa: F401
     from server.agents import extractor         # noqa: F401
     from server.agents import existence         # noqa: F401
-    # from server.agents import embedding_gate    # noqa: F401  (not yet built)
-    # from server.agents import semantic          # noqa: F401  (not yet built)
-    # from server.agents import synthesizer       # noqa: F401  (not yet built)
+    from server.agents import embedding_gate    # noqa: F401
+    from server.agents import llm_verifier      # noqa: F401
+    from server.agents import synthesizer       # noqa: F401
 
 
 # ---------------------------------------------------------------------------

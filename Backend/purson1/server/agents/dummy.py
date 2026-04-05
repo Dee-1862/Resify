@@ -292,7 +292,7 @@ class DummyEmbeddingGate(BaseAgent):
 # ---------------------------------------------------------------------------
 
 class DummySemanticVerifier(BaseAgent):
-    name = "semantic"
+    name = "llm_verifier"
     stage = PipelineStage.LLM_VERIFICATION
     description = "LLM-based semantic verification (dummy: random verdicts)"
     requires_tokens = True  # would use tokens in real implementation
@@ -374,6 +374,9 @@ def _guess_authors(text: str) -> str:
 # Auto-register all dummy agents on import
 # ---------------------------------------------------------------------------
 
+# Only register dummies for stages that don't have real agents yet
+# Real agents (fetcher, extractor, existence, embedding_gate, llm_verifier, synthesizer)
+# override these when imported in main.py
 registry.register(DummyFetcher())
 registry.register(DummyExtractor())
 registry.register(DummyExistence())
