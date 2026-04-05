@@ -6,8 +6,8 @@ interface CitationDetail {
     claim: string;
     reference: { authors?: string; title?: string; year?: number };
     existence_status: string;
-    verification?: { verdict: string; confidence: number; evidence?: string; method: string } | null;
-    source_found?: { title?: string; authors?: string[]; year?: number } | null;
+    verification?: { verdict: string; confidence: number; evidence?: string; explanation?: string; method: string } | null;
+    source_found?: { title?: string; authors?: string[]; year?: number; _source?: string } | null;
 }
 
 interface SynthesisData {
@@ -246,47 +246,71 @@ export function SynthesisPanel({ data }: { data: SynthesisData }) {
                                 </button>
                                 {isOpen && (
                                     <div className="detail-body">
-                                        <div className="detail-field">
-                                            <span className="label">Authors</span>
-                                            <span>{c.reference.authors || 'Unknown'}</span>
+
+                                        {/* ── Verdict explanation — most important, shown first ── */}
+                                        <div className={`verdict-explanation verdict-expl-${ov ? ov.verdict : (c.verification?.verdict || 'uncertain')}`}>
+                                            <span className="verdict-expl-icon">{ov ? '✎' : getStatusInfo(c).badge}</span>
+                                            <span className="verdict-expl-text">
+                                                {ov
+                                                    ? `You manually marked this as "${ov.verdict}".${ov.notes ? ` Note: ${ov.notes}` : ''}`
+                                                    : getVerdictExplanation(c)
+                                                }
+                                            </span>
                                         </div>
-                                        {c.reference.year ? (
-                                            <div className="detail-field">
-                                                <span className="label">Year</span>
-                                                <span>{c.reference.year}</span>
+
+                                        {/* ── Evidence quote ── */}
+                                        {c.verification?.evidence && (
+                                            <div className="detail-evidence-block">
+                                                <span className="label">What the source paper actually says</span>
+                                                <blockquote className="detail-evidence-quote">
+                                                    "{c.verification.evidence}"
+                                                </blockquote>
                                             </div>
-                                        ) : null}
+                                        )}
+
+                                        {/* ── What was claimed ── */}
                                         <div className="detail-field">
-                                            <span className="label">Claim</span>
+                                            <span className="label">What this paper claims</span>
                                             <span className="detail-claim">{c.claim}</span>
                                         </div>
-                                        <div className="detail-field">
-                                            <span className="label">Auto Status</span>
-                                            <span className={getStatusInfo(c).cls}>{getStatusInfo(c).reason}</span>
-                                        </div>
-                                        {c.verification?.evidence && (
-                                            <div className="detail-field">
-                                                <span className="label">Evidence</span>
-                                                <span className="detail-evidence">{c.verification.evidence}</span>
-                                            </div>
-                                        )}
-                                        {c.verification && (
-                                            <div className="detail-field">
-                                                <span className="label">Method</span>
-                                                <span className="mono">{c.verification.method} (confidence: {Math.round(c.verification.confidence * 100)}%)</span>
-                                            </div>
-                                        )}
+
+                                        {/* ── Source paper ── */}
                                         {c.source_found && (
                                             <div className="detail-field">
-                                                <span className="label">Matched Source</span>
-                                                <span>{c.source_found.title}</span>
+                                                <span className="label">Source paper located</span>
+                                                <span className="detail-source-title">{c.source_found.title}</span>
+                                                {c.source_found.authors && c.source_found.authors.length > 0 && (
+                                                    <span className="detail-source-meta">
+                                                        {c.source_found.authors.slice(0, 3).join(', ')}
+                                                        {c.source_found.authors.length > 3 ? ' et al.' : ''}
+                                                        {c.source_found.year ? ` · ${c.source_found.year}` : ''}
+                                                        {c.source_found._source ? ` · via ${humanSourceName(c.source_found._source)}` : ''}
+                                                    </span>
+                                                )}
                                                 <a
-                                                    href={`https://scholar.google.com/scholar?q=${encodeURIComponent(c.source_found.title || c.reference.title || c.reference.authors || '')}`}
+                                                    href={`https://scholar.google.com/scholar?q=${encodeURIComponent(c.source_found.title || c.reference.title || '')}`}
                                                     target="_blank" rel="noreferrer"
-                                                    style={{ display: 'inline-block', marginTop: '0.5rem', color: 'var(--ink-mid)', fontSize: '0.7rem', textDecoration: 'underline' }}
+                                                    className="detail-scholar-link"
                                                 >
-                                                    Search Source on Google Scholar
+                                                    Open in Google Scholar ↗
                                                 </a>
+                                            </div>
+                                        )}
+
+                                        {/* ── Reference metadata ── */}
+                                        <div className="detail-field detail-field-meta">
+                                            <span className="label">Cited as</span>
+                                            <span>
+                                                {c.reference.authors || 'Unknown authors'}
+                                                {c.reference.year ? `, ${c.reference.year}` : ''}
+                                            </span>
+                                        </div>
+
+                                        {/* ── How it was checked ── */}
+                                        {c.verification && (
+                                            <div className="detail-field detail-field-meta">
+                                                <span className="label">How we checked this</span>
+                                                <span>{humanMethodName(c.verification.method, c.verification.confidence)}</span>
                                             </div>
                                         )}
 
@@ -389,4 +413,81 @@ function getOverrideStatusInfo(verdict: string) {
     if (verdict === 'contradicted') return { badge: '!', cls: 'status-conflict', reason: '' };
     if (verdict === 'not_found') return { badge: '?', cls: 'status-notfound', reason: '' };
     return { badge: '~', cls: 'status-uncertain', reason: '' };
+}
+
+function getVerdictExplanation(c: CitationDetail): string {
+    if (c.existence_status === 'not_found') {
+        return "We searched three academic databases (Semantic Scholar, CrossRef, and OpenAlex) but could not locate this paper. It may be unpublished, paywalled, or the citation details may be inaccurate.";
+    }
+
+    const method = c.verification?.method || '';
+    const verdict = c.verification?.verdict;
+    const explanation = c.verification?.explanation?.trim();
+
+    // Use Gemini's explanation when available and meaningful
+    if (explanation && method === 'llm' && explanation.length > 20 && !explanation.startsWith('Parse error') && !explanation.startsWith('No claim')) {
+        return explanation;
+    }
+
+    // Embedding-resolved (no LLM call needed)
+    if (method === 'embedding' && verdict === 'supported') {
+        return "The wording and meaning of this claim closely matches what the source paper actually says. Verified automatically using semantic similarity analysis.";
+    }
+
+    // LLM fallback cases — something went wrong during verification
+    if (method === 'llm_fallback') {
+        if (explanation?.includes('no readable text')) {
+            return "The source paper was found in our database but no readable text could be retrieved — the paper may be behind a paywall. We could not verify the specific claim.";
+        }
+        if (explanation?.includes('No claim text')) {
+            return "No specific claim text was extracted for this citation, so we could not verify what was being asserted.";
+        }
+        return "The source paper was found but we were unable to complete verification, possibly because the paper text was unavailable.";
+    }
+
+    // LLM verdicts without a usable explanation
+    if (verdict === 'supported') {
+        return "Our AI read the source paper and confirmed that the claim made in this citation is consistent with what the paper reports.";
+    }
+    if (verdict === 'contradicted') {
+        return "Our AI found a mismatch between what this citation claims and what the source paper actually states. The source paper may say something different or opposite.";
+    }
+    if (verdict === 'uncertain') {
+        if (method === 'embedding_low_similarity') {
+            return "The language of this claim is very different from the source paper's text. This could mean the claim is inaccurate, or the paper is being cited for something it does not directly address.";
+        }
+        return "The source paper was found, but there is not enough clear evidence in its text to confirm or deny the specific claim being made. Manual review is recommended.";
+    }
+
+    return "This citation could not be fully verified. We recommend reviewing it manually.";
+}
+
+function humanSourceName(source: string): string {
+    const map: Record<string, string> = {
+        semantic_scholar: 'Semantic Scholar',
+        crossref: 'CrossRef',
+        openalex: 'OpenAlex',
+        dblp: 'DBLP',
+    };
+    return map[source] || source;
+}
+
+function humanMethodName(method: string, confidence: number): string {
+    const pct = Math.round(confidence * 100);
+    switch (method) {
+        case 'embedding':
+            return `Checked using semantic text similarity — ${pct}% confidence`;
+        case 'llm':
+            return `Verified by AI reading the source paper — ${pct}% confidence`;
+        case 'llm_fallback':
+            return 'Could not fully verify — source text was unavailable';
+        case 'embedding_low_similarity':
+            return `Low semantic overlap detected, then reviewed by AI — ${pct}% confidence`;
+        case 'embedding_uncertain':
+            return `Inconclusive text similarity, then reviewed by AI — ${pct}% confidence`;
+        case 'no_embedding_model':
+            return `Reviewed by AI (embedding model unavailable) — ${pct}% confidence`;
+        default:
+            return method ? `Method: ${method}` : 'Verification method unknown';
+    }
 }

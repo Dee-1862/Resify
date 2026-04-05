@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Optional
 
 from google import genai
 from pydantic import BaseModel, Field
@@ -137,19 +136,33 @@ class LLMVerifierAgent(BaseAgent):
 
         claim = (cit.get("claim") or "").strip()
         context = (cit.get("context") or "").strip()
-        abstract = (source.get("abstract") or "").strip()
+        # Use full_text if available, fall back to abstract
+        source_text = (source.get("full_text") or source.get("abstract") or "").strip()
+        text_source = source.get("text_source", "abstract")
         source_title = (source.get("title") or "Unknown").strip()
 
         if not claim:
             return _uncertain_result(entry, "No claim text available"), 0
 
-        if not abstract:
-            return _uncertain_result(entry, "No source abstract available for verification"), 0
+        if not source_text:
+            # Last-chance fallback: try abstract directly from existence result
+            source_text = (source.get("abstract") or "").strip()
+            if source_text:
+                text_source = "abstract"
+                max_source_chars = 1500
+            else:
+                return _uncertain_result(entry, "The source paper was found but no readable text is available to verify this claim against."), 0
+
+        # Truncate — use more chars when we have full text vs just abstract
+        max_source_chars = 8000 if text_source in ("full_pdf", "arxiv_pdf") else 1500
+        source_excerpt = source_text[:max_source_chars]
 
         # Build the user message
         hint_note = ""
         if embedding_hint == "possible_contradiction":
-            hint_note = "\nNote: Semantic similarity between claim and abstract is very low — pay extra attention to potential contradictions.\n"
+            hint_note = "\nNote: Semantic similarity between claim and source is very low — pay extra attention to potential contradictions.\n"
+
+        source_label = "SOURCE ABSTRACT" if text_source == "abstract" else "SOURCE TEXT (full paper excerpt)"
 
         user_message = f"""CLAIM: {claim}
 
@@ -157,8 +170,8 @@ CONTEXT (sentence containing citation): {context or "Not available"}
 
 SOURCE PAPER TITLE: {source_title}
 
-SOURCE ABSTRACT:
-{abstract[:1500]}
+{source_label}:
+{source_excerpt}
 {hint_note}"""
 
         def call_gemini():

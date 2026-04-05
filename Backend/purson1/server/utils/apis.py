@@ -1,4 +1,6 @@
 import asyncio
+import html as html_module
+import re
 import ssl
 import certifi
 import aiohttp
@@ -36,7 +38,7 @@ class SemanticScholarAPI:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
         self.headers = {"x-api-key": api_key} if api_key else {}
-        self.fields = "title,authors,year,abstract,paperId,externalIds,citationCount"
+        self.fields = "title,authors,year,abstract,paperId,externalIds,citationCount,tldr,openAccessPdf"
 
     async def _throttle(self):
         """Simple rate limiter shared across all instances."""
@@ -171,12 +173,23 @@ class OpenAlexAPI:
                 abstract = " ".join(w for _, w in words[:120])
             except Exception:
                 abstract = ""
+        # Open access PDF URL
+        oa_url = work.get("open_access", {}).get("oa_url") or ""
+        # arXiv ID from ids dict
+        arxiv_id = work.get("ids", {}).get("arxiv", "")
+        if arxiv_id and not oa_url:
+            # Build arXiv PDF link directly
+            arxiv_clean = arxiv_id.replace("https://arxiv.org/abs/", "").strip()
+            oa_url = f"https://arxiv.org/pdf/{arxiv_clean}"
+
         return {
             "title": title,
             "authors": authors,
             "year": pub_year,
             "abstract": abstract or "",
             "paperId": work.get("id", ""),
+            "openAccessPdf": {"url": oa_url} if oa_url else None,
+            "externalIds": {"ArXiv": arxiv_id} if arxiv_id else {},
         }
 
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -184,7 +197,7 @@ class OpenAlexAPI:
         url = (
             f"{self.BASE_URL}/works?search={quote_plus(query)}"
             f"&per-page={limit}"
-            f"&select=id,title,authorships,publication_year,abstract_inverted_index"
+            f"&select=id,title,authorships,publication_year,abstract_inverted_index,open_access,ids"
             f"&mailto=resify@example.com"
         )
         session = APIClientManager.get_session()
@@ -203,7 +216,7 @@ class OpenAlexAPI:
         url = (
             f"{self.BASE_URL}/works?filter=title.search:{quote_plus(title)}"
             f"&per-page={limit}"
-            f"&select=id,title,authorships,publication_year,abstract_inverted_index"
+            f"&select=id,title,authorships,publication_year,abstract_inverted_index,open_access,ids"
             f"&mailto=resify@example.com"
         )
         session = APIClientManager.get_session()
@@ -267,3 +280,119 @@ class CrossRefAPI:
                 return []
         except Exception:
             return []
+
+
+class DblpAPI:
+    """
+    DBLP Computer Science Bibliography — free, no auth required.
+    Outstanding coverage of NLP/CL venues: ACL, EMNLP, NAACL, EACL, COLING,
+    *SEM, TACL, CoNLL, and many more. ACL papers have open-access PDFs we
+    can link directly.
+    https://dblp.org/faq/How+can+I+use+the+dblp+search+API.html
+    """
+    SEARCH_URL = "https://dblp.org/search/publ/api"
+    _last_request_time: float = 0.0
+    _min_interval: float = 0.5  # polite rate limiting
+
+    async def _throttle(self):
+        now = asyncio.get_event_loop().time()
+        wait = DblpAPI._min_interval - (now - DblpAPI._last_request_time)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        DblpAPI._last_request_time = asyncio.get_event_loop().time()
+
+    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        await self._throttle()
+        session = APIClientManager.get_session()
+        params = {"q": query, "format": "json", "h": str(limit)}
+        try:
+            async with session.get(self.SEARCH_URL, params=params, timeout=12) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json(content_type=None)
+                hits = data.get("result", {}).get("hits", {}).get("hit", [])
+                if not hits:
+                    return []
+                if isinstance(hits, dict):
+                    hits = [hits]
+                papers = [self._parse_hit(h) for h in hits]
+                papers = [p for p in papers if p]
+
+                # Enrich ACL papers with abstract (cheap — one page fetch per paper)
+                acl_papers = [p for p in papers if p.get("externalIds", {}).get("ACL")]
+                if acl_papers:
+                    abstracts = await asyncio.gather(
+                        *[self._fetch_acl_abstract(p["externalIds"]["ACL"]) for p in acl_papers],
+                        return_exceptions=True,
+                    )
+                    for paper, abstract in zip(acl_papers, abstracts):
+                        if isinstance(abstract, str) and abstract:
+                            paper["abstract"] = abstract
+
+                return papers
+        except Exception:
+            return []
+
+    @staticmethod
+    def _parse_hit(hit: Dict) -> Optional[Dict[str, Any]]:
+        info = hit.get("info", {})
+        title = html_module.unescape(info.get("title", "") or "").rstrip(".")
+        if not title:
+            return None
+
+        year = info.get("year")
+        try:
+            year = int(year) if year else None
+        except (ValueError, TypeError):
+            year = None
+
+        # Authors: DBLP returns a dict for single author, list for multiple
+        raw_authors = info.get("authors", {}).get("author", [])
+        if isinstance(raw_authors, dict):
+            raw_authors = [raw_authors]
+        authors = [a.get("text", "") for a in raw_authors if isinstance(a, dict) and a.get("text")]
+
+        # External URL — may be a list for papers with multiple versions
+        ee = info.get("ee", "") or ""
+        if isinstance(ee, list):
+            ee = next((u for u in ee if "aclanthology" in u or "10.18653" in u), ee[0] if ee else "")
+
+        # Extract ACL Anthology ID from DOI (10.18653/v1/{acl_id})
+        acl_id = None
+        oa_pdf_url = None
+        acl_doi_match = re.search(r'10\.18653/v1/([^\s/"]+)', ee)
+        if acl_doi_match:
+            acl_id = acl_doi_match.group(1)
+            oa_pdf_url = f"https://aclanthology.org/{acl_id}.pdf"
+
+        return {
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "abstract": "",
+            "paperId": info.get("key", ""),
+            "openAccessPdf": {"url": oa_pdf_url} if oa_pdf_url else None,
+            "externalIds": {"ACL": acl_id} if acl_id else {},
+            "tldr": None,
+            "_source": "dblp",
+            "_dblp_venue": info.get("venue", ""),
+        }
+
+    async def _fetch_acl_abstract(self, acl_id: str) -> str:
+        """Fetch abstract by scraping the ACL Anthology paper page.
+        The abstract is embedded in a JS object: abstract:"<text>"
+        """
+        url = f"https://aclanthology.org/{acl_id}/"
+        session = APIClientManager.get_session()
+        try:
+            async with session.get(url, timeout=10) as resp:
+                if resp.status != 200:
+                    return ""
+                text = await resp.text()
+                # The page embeds: abstract:"<text with escaped quotes>"
+                m = re.search(r'abstract:"((?:[^"\\]|\\.)*)"', text)
+                if m:
+                    return m.group(1).replace('\\"', '"').replace("\\n", " ").strip()
+                return ""
+        except Exception:
+            return ""

@@ -7,7 +7,7 @@ import os
 import re
 from typing import Any, Dict, Optional
 from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
-from server.utils.apis import SemanticScholarAPI, CrossRefAPI, OpenAlexAPI, APIError
+from server.utils.apis import SemanticScholarAPI, CrossRefAPI, OpenAlexAPI, DblpAPI, APIError
 
 _here = os.path.dirname(os.path.abspath(__file__))
 _default_existence_db = os.path.join(_here, "..", "..", "existence_cache.db")
@@ -209,7 +209,7 @@ def best_match(reference: dict, results: list) -> tuple[Optional[dict], float]:
 class ExistenceAgent(BaseAgent):
     name = "existence"
     stage = PipelineStage.CHECKING_EXISTENCE
-    description = "Check citation existence via S2 → CrossRef → OpenAlex"
+    description = "Check citation existence via S2 → CrossRef → OpenAlex → DBLP"
     requires_tokens = False
 
     def __init__(self, db_path=_default_existence_db, concurrency_limit=3):
@@ -218,6 +218,7 @@ class ExistenceAgent(BaseAgent):
         self.s2 = SemanticScholarAPI(api_key=settings.S2_API_KEY or None)
         self.crossref = CrossRefAPI()
         self.openalex = OpenAlexAPI()
+        self.dblp = DblpAPI()
         self.cache = ExistenceCache(db_path)
         self.concurrency_limit = concurrency_limit
 
@@ -315,6 +316,21 @@ class ExistenceAgent(BaseAgent):
             except Exception as e:
                 logger.warning(f"OpenAlex search error: {e}")
 
+        # ── Pass 4: DBLP (excellent NLP/CL venue coverage + ACL Anthology) ──
+        if ref_title:
+            for q in [
+                f"{ref_title} {first_author} {ref_year}".strip(),
+                ref_title,
+            ]:
+                try:
+                    results = await self.dblp.search(q, limit=8)
+                    m, sc = best_match(reference, results)
+                    if m:
+                        return m, sc, m.get("_source", "dblp")
+                except Exception as e:
+                    logger.warning(f"DBLP search error: {e}")
+                    break
+
         return None, 0.0, "none"
 
     async def _process_single_citation(
@@ -355,13 +371,27 @@ class ExistenceAgent(BaseAgent):
                 return cid, response_data, lookup_key
 
             paper_obj = {
-                "paper_id": matched.get("paperId", matched.get("id", "")),
-                "title":    matched.get("title"),
-                "authors":  extract_authors_list(matched.get("authors", [])),
-                "year":     matched.get("year"),
-                "abstract": matched.get("abstract", ""),
-                "_source":  source,
+                "paper_id":       matched.get("paperId", matched.get("id", "")),
+                "title":          matched.get("title"),
+                "authors":        extract_authors_list(matched.get("authors", [])),
+                "year":           matched.get("year"),
+                "abstract":       matched.get("abstract", ""),
+                "tldr":           matched.get("tldr"),
+                "openAccessPdf":  matched.get("openAccessPdf"),
+                "externalIds":    matched.get("externalIds", {}),
+                "_source":        source,
             }
+
+            # Enrich with full text if available
+            try:
+                from server.utils.text_enricher import enrich_source_text
+                enriched = await enrich_source_text(paper_obj)
+                paper_obj["full_text"]    = enriched["text"]
+                paper_obj["text_source"]  = enriched["source"]
+            except Exception as e:
+                logger.warning(f"[cid {cid}] Text enrichment failed: {e}")
+                paper_obj["full_text"]   = paper_obj.get("abstract", "")
+                paper_obj["text_source"] = "abstract"
 
             meta = self._verify_metadata(reference, paper_obj)
             response_data = {

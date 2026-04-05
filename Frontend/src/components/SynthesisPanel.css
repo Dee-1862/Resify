@@ -386,6 +386,114 @@
 .ov-cancel { background: var(--paper); color: var(--ink-faint); }
 .ov-cancel:hover { color: var(--ink); }
 
+/* Verdict explanation block */
+.verdict-explanation {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    padding: 0.6rem 0.75rem;
+    border-radius: 2px;
+    margin-bottom: 0.75rem;
+    border-left: 3px solid transparent;
+}
+
+.verdict-expl-supported {
+    background: rgba(0, 128, 0, 0.06);
+    border-color: var(--verified, #2e7d32);
+}
+
+.verdict-expl-contradicted {
+    background: rgba(180, 0, 0, 0.06);
+    border-color: var(--fabricated, #b71c1c);
+}
+
+.verdict-expl-uncertain {
+    background: rgba(120, 100, 0, 0.06);
+    border-color: var(--ink-faint, #888);
+}
+
+.verdict-expl-not_found {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: var(--ink-faint, #888);
+}
+
+.verdict-expl-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+    opacity: 0.75;
+}
+
+.verdict-expl-text {
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--ink);
+}
+
+/* Evidence quote */
+.detail-evidence-block {
+    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.detail-evidence-quote {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    border-left: 2px solid var(--rule);
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--ink-mid);
+    line-height: 1.5;
+    background: rgba(0,0,0,0.02);
+}
+
+/* Source paper title/meta */
+.detail-source-title {
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+    margin-top: 0.15rem;
+}
+
+.detail-source-meta {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    margin-top: 0.2rem;
+}
+
+.detail-scholar-link {
+    display: inline-block;
+    margin-top: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--ink-mid);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+.detail-scholar-link:hover {
+    color: var(--ink);
+}
+
+/* Smaller meta fields (Cited as / How we checked) */
+.detail-field-meta {
+    opacity: 0.75;
+}
+
+.detail-field-meta span:not(.label) {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+}
+
 /* Conclusion */
 .synth-conclusion {
     padding: 0.75rem 1rem;

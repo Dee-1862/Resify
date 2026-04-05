@@ -19,7 +19,6 @@ import asyncio
 import logging
 import sys
 import os
-from typing import Optional
 
 from server.agents.base import BaseAgent, AgentResult, PipelineContext, PipelineStage, registry
 from server.config import settings
@@ -83,7 +82,6 @@ class EmbeddingGateAgent(BaseAgent):
 
         support_threshold = settings.EMBEDDING_SUPPORT_THRESHOLD       # default 0.75
         contradict_threshold = settings.EMBEDDING_CONTRADICT_THRESHOLD  # default 0.75
-        margin_threshold = settings.EMBEDDING_MARGIN_THRESHOLD          # default 0.2
 
         for cit in ctx.citations:
             cid = cit["id"]
@@ -92,7 +90,8 @@ class EmbeddingGateAgent(BaseAgent):
                 continue
 
             paper = existence.get("paper", {})
-            abstract = (paper.get("abstract") or "").strip()
+            # Use full_text if available, fall back to abstract
+            source_text = (paper.get("full_text") or paper.get("abstract") or "").strip()
             claim = (cit.get("claim") or "").strip()
             context = (cit.get("context") or "").strip()
 
@@ -103,9 +102,8 @@ class EmbeddingGateAgent(BaseAgent):
                 needs_llm.append(_make_entry(cit, paper, "uncertain", 0.0, "no_claim_text", send_to_llm=True))
                 continue
 
-            if not abstract:
-                # No abstract — can't do embedding, send straight to LLM
-                needs_llm.append(_make_entry(cit, paper, "uncertain", 0.0, "no_abstract", send_to_llm=True))
+            if not source_text:
+                needs_llm.append(_make_entry(cit, paper, "uncertain", 0.0, "no_source_text", send_to_llm=True))
                 continue
 
             # Run embedding in thread pool (CPU-bound)
@@ -113,7 +111,7 @@ class EmbeddingGateAgent(BaseAgent):
                 from embeddings import encode, best_span_similarity
                 result = await loop.run_in_executor(
                     None,
-                    lambda c=query_text, a=abstract: best_span_similarity(model, c, a)
+                    lambda c=query_text, a=source_text: best_span_similarity(model, c, a)
                 )
                 sim = result["best_similarity"]
                 best_span = result["best_span"]
